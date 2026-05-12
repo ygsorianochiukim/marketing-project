@@ -4,20 +4,6 @@ import { join } from "node:path";
 
 export const runtime = "nodejs";
 
-const WIDTH = 794;
-const HEIGHT = 1123;
-
-const DEFAULTS = {
-  positionName: "Position Name",
-  qualification: "Qualification",
-  workAbout: "Qualification",
-  startingRate: "Starting",
-  regularRate: "Regular",
-  companyName: "Chiu Kim Enterprises Inc.",
-  companyAddress: "Bldg, Osmeña St., Zone I, City of Koronadal",
-  companyPhone: "63 963 630 8117",
-};
-
 async function loadBgDataUrl(): Promise<string | null> {
   try {
     const buf = await readFile(
@@ -32,20 +18,20 @@ async function loadBgDataUrl(): Promise<string | null> {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const positionName = searchParams.get("position") ?? DEFAULTS.positionName;
-    const qualification =
-      searchParams.get("qualification") ?? DEFAULTS.qualification;
-    const workAbout = searchParams.get("work_about") ?? DEFAULTS.workAbout;
-    const startingRate = searchParams.get("starting") ?? DEFAULTS.startingRate;
-    const regularRate = searchParams.get("regular") ?? DEFAULTS.regularRate;
+    const template = searchParams.get("template") ?? "admin";
+    const isCover = template === "cover";
+    const position = searchParams.get("position") ?? "Position Name";
+    const qualification = searchParams.get("qualification") ?? "Qualification";
+    const workAbout = searchParams.get("work_about") ?? "Qualification";
+    const startingRate = searchParams.get("starting") ?? "Starting";
+    const regularRate = searchParams.get("regular") ?? "Regular";
     const companyName =
-      searchParams.get("company_name") ?? DEFAULTS.companyName;
+      searchParams.get("company_name") ?? "Chiu Kim Enterprises Inc.";
     const companyAddress =
-      searchParams.get("company_address") ?? DEFAULTS.companyAddress;
-    const companyPhone =
-      searchParams.get("company_phone") ?? DEFAULTS.companyPhone;
+      searchParams.get("company_address") ??
+      "Bldg, Osmena St., Zone I, City of Koronadal";
+    const companyPhone = searchParams.get("company_phone") ?? "63 963 630 8117";
     const qrCodeUrl = searchParams.get("qr");
-
     const bgDataUrl = await loadBgDataUrl();
 
     return new ImageResponse(
@@ -58,13 +44,14 @@ export async function GET(request: Request) {
             flexDirection: "column",
             padding: "40px 56px",
             backgroundColor: "#f3e8cf",
-            backgroundImage: bgDataUrl ? `url(${bgDataUrl})` : undefined,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
+            ...(bgDataUrl && {
+              backgroundImage: `url(${bgDataUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }),
             color: "#2d2a26",
           }}
         >
-          {/* Brand */}
           <div
             style={{
               display: "flex",
@@ -94,123 +81,196 @@ export async function GET(request: Request) {
             </div>
           </div>
 
-          {/* Position title */}
-          <div
-            style={{
-              marginTop: 32,
-              fontSize: 64,
-              fontWeight: 700,
-              color: "#3a3a3a",
-              lineHeight: 1,
-            }}
-          >
-            {positionName}
-          </div>
-
-          {/* Qualification */}
-          <div
-            style={{ marginTop: 32, display: "flex", flexDirection: "column" }}
-          >
-            <div style={{ fontSize: 14, fontStyle: "italic", color: "#5a5a5a" }}>
-              What we are looking for :
-            </div>
+          {isCover ? (
             <div
               style={{
-                marginTop: 4,
-                paddingLeft: 16,
-                fontSize: 16,
-                color: "#2d2a26",
+                marginTop: 120,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
               }}
             >
-              {qualification}
+              <div
+                style={{
+                  fontSize: 20,
+                  letterSpacing: 6,
+                  color: "#8a6a3b",
+                }}
+              >
+                WE&apos;RE HIRING
+              </div>
+              <div
+                style={{
+                  marginTop: 24,
+                  fontSize: 80,
+                  fontWeight: 700,
+                  color: "#3a3a3a",
+                  lineHeight: 1,
+                }}
+              >
+                Join Our Team
+              </div>
+              <div
+                style={{
+                  marginTop: 32,
+                  width: 520,
+                  fontSize: 16,
+                  fontStyle: "italic",
+                  color: "#5a5a5a",
+                  textAlign: "center",
+                }}
+              >
+                Build meaningful spaces for families and generations to come.
+              </div>
             </div>
-          </div>
-
-          {/* Work about */}
-          <div
-            style={{ marginTop: 32, display: "flex", flexDirection: "column" }}
-          >
-            <div style={{ fontSize: 14, fontStyle: "italic", color: "#5a5a5a" }}>
-              What is the work about :
-            </div>
+          ) : (
             <div
               style={{
-                marginTop: 4,
-                paddingLeft: 16,
-                fontSize: 16,
-                color: "#2d2a26",
-              }}
-            >
-              {workAbout}
-            </div>
-          </div>
-
-          {/* Compensation */}
-          <div
-            style={{ marginTop: 40, display: "flex", flexDirection: "column" }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 600, color: "#3a3a3a" }}>
-              Compensation and Benefits
-            </div>
-            <div
-              style={{
-                marginTop: 12,
-                fontSize: 14,
-                fontStyle: "italic",
-                color: "#5a5a5a",
-              }}
-            >
-              Starting :
-            </div>
-            <div
-              style={{
-                marginTop: 2,
-                paddingLeft: 16,
-                fontSize: 22,
+                marginTop: 32,
+                fontSize: 64,
                 fontWeight: 700,
-                color: "#2d2a26",
+                color: "#3a3a3a",
+                lineHeight: 1,
               }}
             >
-              {startingRate}
+              {position}
             </div>
+          )}
+
+          {!isCover && (
             <div
               style={{
-                marginTop: 10,
-                fontSize: 14,
-                fontStyle: "italic",
-                color: "#5a5a5a",
+                display: "flex",
+                flexDirection: "column",
               }}
             >
-              Regular :
-            </div>
-            <div
-              style={{
-                marginTop: 2,
-                paddingLeft: 16,
-                fontSize: 22,
-                fontWeight: 700,
-                color: "#2d2a26",
-              }}
-            >
-              {regularRate}
-            </div>
-          </div>
+              <div
+                style={{
+                  marginTop: 32,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontStyle: "italic",
+                    color: "#5a5a5a",
+                  }}
+                >
+                  What we are looking for :
+                </div>
+                <div
+                  style={{
+                    marginTop: 4,
+                    paddingLeft: 16,
+                    fontSize: 16,
+                    color: "#2d2a26",
+                  }}
+                >
+                  {qualification}
+                </div>
+              </div>
 
-          {/* Disclaimer */}
-          <div
-            style={{
-              marginTop: 24,
-              width: 560,
-              fontSize: 10,
-              lineHeight: 1.5,
-              color: "#6b6b6b",
-            }}
-          >
-            Rates already reflect a performance-and-integrity allocation that
-            may be given in full when work is carried out responsibly
-          </div>
+              <div
+                style={{
+                  marginTop: 32,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontStyle: "italic",
+                    color: "#5a5a5a",
+                  }}
+                >
+                  What is the work about :
+                </div>
+                <div
+                  style={{
+                    marginTop: 4,
+                    paddingLeft: 16,
+                    fontSize: 16,
+                    color: "#2d2a26",
+                  }}
+                >
+                  {workAbout}
+                </div>
+              </div>
 
-          {/* Footer */}
+              <div
+                style={{
+                  marginTop: 40,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{ fontSize: 18, fontWeight: 600, color: "#3a3a3a" }}
+                >
+                  Compensation and Benefits
+                </div>
+                <div
+                  style={{
+                    marginTop: 12,
+                    fontSize: 14,
+                    fontStyle: "italic",
+                    color: "#5a5a5a",
+                  }}
+                >
+                  Starting :
+                </div>
+                <div
+                  style={{
+                    marginTop: 2,
+                    paddingLeft: 16,
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: "#2d2a26",
+                  }}
+                >
+                  {startingRate}
+                </div>
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontSize: 14,
+                    fontStyle: "italic",
+                    color: "#5a5a5a",
+                  }}
+                >
+                  Regular :
+                </div>
+                <div
+                  style={{
+                    marginTop: 2,
+                    paddingLeft: 16,
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: "#2d2a26",
+                  }}
+                >
+                  {regularRate}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 24,
+                  width: 560,
+                  fontSize: 10,
+                  lineHeight: 1.5,
+                  color: "#6b6b6b",
+                }}
+              >
+                Rates already reflect a performance-and-integrity allocation
+                that may be given in full when work is carried out responsibly
+              </div>
+            </div>
+          )}
+
           <div
             style={{
               marginTop: "auto",
@@ -258,15 +318,13 @@ export async function GET(request: Request) {
               <div style={{ fontWeight: 700 }}>
                 Please send your documents at:
               </div>
-              <div style={{ marginTop: 2 }}>
-                {companyName} {companyAddress}
-              </div>
+              <div style={{ marginTop: 2 }}>{`${companyName} ${companyAddress}`}</div>
               <div style={{ marginTop: 2 }}>{companyPhone}</div>
             </div>
           </div>
         </div>
       ),
-      { width: WIDTH, height: HEIGHT },
+      { width: 794, height: 1123 },
     );
   } catch (err) {
     return new Response(
