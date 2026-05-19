@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ad-generator: generated outputs and runtime-only state
+/public/outputs
+asset-library.json
+post-drafts.json
+
+# ad-generator: coverage / signals / brand-settings are committed as starter
+# state — anyone cloning fresh inherits the current Renaissance Park brand
+# config + recent coverage. Subsequent runs overwrite these as the app runs.
