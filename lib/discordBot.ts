@@ -6,17 +6,52 @@ import {
   TextChannel,
   DMChannel,
   NewsChannel,
+  ThreadChannel,
   Attachment,
   AttachmentBuilder,
+  ChannelType,
 } from 'discord.js'
 
-type SendableChannel = TextChannel | DMChannel | NewsChannel
+type SendableChannel = TextChannel | DMChannel | NewsChannel | ThreadChannel
+
+// Channel where Discord threads can be created. DMs and existing threads
+// cannot host child threads.
+type ThreadCapableChannel = TextChannel | NewsChannel
+
+function canHostThreads(ch: SendableChannel): ch is ThreadCapableChannel {
+  return ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement
+}
+
+/**
+ * Opens a new Discord thread in the given channel to hold the publish record
+ * for one ad. Falls back to the channel itself if the channel can't host
+ * threads (DMs / nested threads / missing permissions). Caller posts the
+ * full image + caption + agent line into the returned target.
+ */
+async function openPublishThread(
+  ch: SendableChannel,
+  threadName: string,
+): Promise<SendableChannel> {
+  if (!canHostThreads(ch)) return ch
+  try {
+    const thread = await ch.threads.create({
+      name: threadName.slice(0, 100), // Discord limit
+      autoArchiveDuration: 1440,       // 1 day
+      reason: 'Co-branded published ad record',
+    })
+    return thread
+  } catch (err: any) {
+    console.warn(`[Discord] Thread create failed (${err?.message ?? err}) — posting in channel instead`)
+    return ch
+  }
+}
 
 import fs from 'fs'
 import path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
 import sharp from 'sharp'
 import { createJob, getJob, updateJob } from './jobStore'
+import { agentBadge } from './agentStore'
 import { uploadImage, uploadImageFromUrl, listFolderImages, downloadDriveFile } from './googleDrive'
 import { evaluateMedia, generateClarifyingQuestions, parseClarifyingAnswers } from './claude'
 import { generateImageAd, downloadToBuffer } from './imageGen'
@@ -298,7 +333,6 @@ const TEMPLATE_PREVIEW_LIST = [
   { key: 'COMPARISON_TEMPLATE',         label: 'Comparison',              needsPhoto: true  },
   { key: 'RETARGETING_TEMPLATE',        label: 'Retargeting',             needsPhoto: true  },
   { key: 'CONVERSATIONAL_TEMPLATE',     label: 'Conversational',          needsPhoto: true  },
-  { key: 'SOCIAL_PROOF_TEMPLATE',       label: 'Social Proof',            needsPhoto: true  },
   { key: 'PROBLEM_SOLUTION_TEMPLATE',   label: 'Problem → Solution',      needsPhoto: true  },
 ]
 
@@ -323,8 +357,6 @@ const TEMPLATE_NAME_MAP: Record<string, string> = {
   'comparison': 'COMPARISON_TEMPLATE',
   'retargeting': 'RETARGETING_TEMPLATE',
   'conversational': 'CONVERSATIONAL_TEMPLATE',
-  'social proof': 'SOCIAL_PROOF_TEMPLATE',
-  'testimonial': 'SOCIAL_PROOF_TEMPLATE',
   'problem solution': 'PROBLEM_SOLUTION_TEMPLATE',
   'problem': 'PROBLEM_SOLUTION_TEMPLATE',
 }
@@ -1313,7 +1345,7 @@ async function handleMessage(message: Message) {
     if (!heroDataUri) {
       await ch.send(`⚠️ No usable hero photo found — photo templates will be skipped. Attach a park photo to this message and resend \`preview templates\`.`)
     }
-    await runTemplatePreview(ch, null, heroDataUri)
+    await runTemplatePreview(ch, null, heroDataUri, message.channelId)
     return
   }
 
@@ -1334,7 +1366,7 @@ async function handleMessage(message: Message) {
       await ch.send('⚠️ No hero photo available. Attach a park photo to this message and resend.')
       return
     }
-    await runTemplatePreview(ch, templateKey, heroDataUri)
+    await runTemplatePreview(ch, templateKey, heroDataUri, message.channelId)
     return
   }
 
@@ -1688,7 +1720,7 @@ async function handleMessage(message: Message) {
         g.__lastConceptImageUri = undefined
       }
 
-      const result = await generateImageAd(adBrief, heroAsset ? [heroAsset] : [], draft.templateKey)
+      const result = await generateImageAd(adBrief, heroAsset ? [heroAsset] : [], draft.templateKey, { discordChannelId: message.channelId })
       g.__lastAdBuffer = result.buffer
       g.__lastAdCaption = draft.caption
       const attachment = new AttachmentBuilder(result.buffer, { name: `concept_ad.png` })
@@ -2240,7 +2272,7 @@ async function loadShuffledHeroUris(): Promise<HeroAssetEntry[]> {
   return entries
 }
 
-async function runTemplatePreview(ch: SendableChannel, templateKey: string | null, heroDataUri: string | null) {
+async function runTemplatePreview(ch: SendableChannel, templateKey: string | null, heroDataUri: string | null, discordChannelId?: string) {
   const s = loadSettings()
   const brief: AdBrief = {
     product: `${s.footerRight1 ?? ''} ${s.footerRight2 ?? ''}`.trim() || 'Renaissance Park & Chapels',
@@ -2264,7 +2296,7 @@ async function runTemplatePreview(ch: SendableChannel, templateKey: string | nul
     }
     try {
       const assets = t.needsPhoto && heroMediaAsset ? [heroMediaAsset] : []
-      const result = await generateImageAd(brief, assets, t.key)
+      const result = await generateImageAd(brief, assets, t.key, { discordChannelId })
       const attachment = new AttachmentBuilder(result.buffer, { name: `preview_${t.key.toLowerCase()}.png` })
       await ch.send({ content: `**${t.label}** · \`${t.key}\``, files: [attachment] })
     } catch (err: any) {
@@ -2802,13 +2834,6 @@ const AD_CATEGORIES_BY_LEVEL: Record<string, AdCategory[]> = {
       desc: 'Shows clear advantage over public cemetery or competitors — side by side',
       objective: 'inquiry',
       designDirective: 'COMPARISON_TEMPLATE',
-    },
-    {
-      id: 'social-proof',
-      label: 'Social Proof',
-      desc: 'Family testimonial over park photo — builds trust quickly',
-      objective: 'inquiry',
-      designDirective: 'SOCIAL_PROOF_TEMPLATE',
     },
     {
       id: 'product-feature',
@@ -3842,16 +3867,16 @@ async function handlePostReview(message: Message, draft: PostDraft, revisionCoun
           id: 'fulfilled_hero', name: 'hero.jpg',
           mimeType: 'image/jpeg', url: heroUrl, webViewLink: heroUrl, score: 100,
         }
-        const imageResult = await generateImageAd(adBrief, [heroAsset], adCategoryDirective)
+        const imageResult = await generateImageAd(adBrief, [heroAsset], adCategoryDirective, { discordChannelId: message.channelId })
         const job = createJob({
           status: 'rendering', brief: adBrief, assets: [heroAsset],
           discordChannelId: message.channelId, discordUserId: userId, conversationStep: 'ready',
         })
-        updateJob(job.id, { imageUrl: `/outputs/${imageResult.jobId}.png` })
+        updateJob(job.id, { imageUrl: `/outputs/${imageResult.jobId}.png`, templateKey: imageResult.templateKey })
 
         const safeName = draft.concept.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)
         const fileName = `${safeName}_${imageResult.jobId}.png`
-        const fullCaption = buildFacebookCaption(draft)
+        const fullCaption = buildFacebookCaption(draft, imageResult.agent)
         const categoryLabel = adCategoryDirective
           ? ` _(${Object.values(AD_CATEGORIES_BY_LEVEL).flat().find(c => c.designDirective === adCategoryDirective)?.label ?? 'custom'} layout)_`
           : ''
@@ -3953,7 +3978,7 @@ async function handlePostPublish(message: Message, draft: PostDraft) {
           score: 100,
         }
 
-        const imageResult = await generateImageAd(brief, [heroAsset])
+        const imageResult = await generateImageAd(brief, [heroAsset], undefined, { discordChannelId: message.channelId })
         const job = createJob({
           status: 'rendering',
           brief,
@@ -3962,11 +3987,11 @@ async function handlePostPublish(message: Message, draft: PostDraft) {
           discordUserId: userId,
           conversationStep: 'ready',
         })
-        updateJob(job.id, { imageUrl: `/outputs/${imageResult.jobId}.png` })
+        updateJob(job.id, { imageUrl: `/outputs/${imageResult.jobId}.png`, templateKey: imageResult.templateKey })
 
         const safeName = draft.concept.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)
         const fileName = `${safeName}_${imageResult.jobId}.png`
-        const fullCaption = buildFacebookCaption(draft)
+        const fullCaption = buildFacebookCaption(draft, imageResult.agent)
 
         const attachment = new AttachmentBuilder(imageResult.localPath, { name: 'ad-preview.png' })
         await ch.send({
@@ -4049,7 +4074,7 @@ async function handlePostPublish(message: Message, draft: PostDraft) {
           score: 100,
         }
 
-        const imageResult = await generateImageAd(brief, [heroAsset])
+        const imageResult = await generateImageAd(brief, [heroAsset], undefined, { discordChannelId: message.channelId })
 
         const job = createJob({
           status: 'rendering',
@@ -4059,11 +4084,11 @@ async function handlePostPublish(message: Message, draft: PostDraft) {
           discordUserId: userId,
           conversationStep: 'ready',
         })
-        updateJob(job.id, { imageUrl: `/outputs/${imageResult.jobId}.png` })
+        updateJob(job.id, { imageUrl: `/outputs/${imageResult.jobId}.png`, templateKey: imageResult.templateKey })
 
         const safeName = draft.concept.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)
         const fileName = `${safeName}_${imageResult.jobId}.png`
-        const fullCaption = buildFacebookCaption(draft)
+        const fullCaption = buildFacebookCaption(draft, imageResult.agent)
 
         const attachment = new AttachmentBuilder(imageResult.localPath, { name: 'ad-preview.png' })
         await ch.send({
@@ -4325,7 +4350,7 @@ async function handleFacebookConfirm(
     }
     await ch.send('Regenerating the ad...')
     try {
-      const imageResult = await generateImageAd(confirm.adBrief, [confirm.heroAsset], notes)
+      const imageResult = await generateImageAd(confirm.adBrief, [confirm.heroAsset], notes, { discordChannelId: message.channelId })
       const safeName = (confirm.adBrief.concept ?? 'ad').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)
       const fileName = `${safeName}_${imageResult.jobId}.png`
       const nextSlot = getNextBestPostTime()
@@ -4394,29 +4419,65 @@ async function handleFacebookConfirm(
   const isScheduled = !!confirm.scheduledTime
   await ch.send(isScheduled ? `Scheduling on Facebook...` : 'Posting to Facebook...')
   try {
+    // Co-branding: when the brief came from a registered agent, surface their
+    // info on the publish confirmation so the agent's channel keeps a record
+    // of what went out with their name on it. The image is re-attached so the
+    // agent's channel has the final co-branded artifact in-thread.
+    const agentForReply = confirm.adBrief?.agent
+    const agentLine = agentForReply
+      ? `\n_Co-branded for **${agentForReply.fullName}** (${agentBadge(agentForReply)}${agentForReply.phone ? ` · ${agentForReply.phone}` : ''})._`
+      : ''
+    const publishedAttachment = (() => {
+      try { return new AttachmentBuilder(confirm.localPath, { name: confirm.fileName ?? 'ad.png' }) }
+      catch { return null }
+    })()
+
+    // Derive a human-readable template label for the thread name.
+    const templateLabel = confirm.adCategoryDirective?.endsWith('_TEMPLATE')
+      ? Object.values(AD_CATEGORIES_BY_LEVEL).flat().find(c => c.designDirective === confirm.adCategoryDirective)?.label ?? 'Ad'
+      : 'Ad'
+
     if (isScheduled) {
       const fbResult = await scheduleImageToFacebook(confirm.localPath, confirm.caption, confirm.scheduledTime!)
       updateJob(job.id, { status: 'done' })
       if (confirm.approvedDraftId) updateDraft(confirm.approvedDraftId, { status: 'published' })
       if (confirm.adCategoryDirective?.endsWith('_TEMPLATE')) {
-        const catLabel = Object.values(AD_CATEGORIES_BY_LEVEL).flat().find(c => c.designDirective === confirm.adCategoryDirective)?.label ?? confirm.adCategoryDirective
-        recordPost(confirm.adCategoryDirective, catLabel, confirm.scheduledTime!, fbResult.photoId, fbResult.postId ?? undefined)
+        recordPost(confirm.adCategoryDirective, templateLabel, confirm.scheduledTime!, fbResult.photoId, fbResult.postId ?? undefined)
       }
-      await ch.send(`✅ Scheduled for **${formatPHT(confirm.scheduledTime!)}**\n${fbResult.url}`)
+
+      // Open a dedicated thread for this ad's publish record.
+      const threadName = `📅 ${formatPHT(confirm.scheduledTime!)} · ${templateLabel}`
+      const thread = await openPublishThread(ch, threadName)
+      // Short pointer in the channel; full details in the thread.
+      if (thread !== ch) await ch.send(`✅ Scheduled — details in <#${(thread as ThreadChannel).id}>`)
+      await thread.send({
+        content: `✅ **Scheduled for ${formatPHT(confirm.scheduledTime!)}**\n${fbResult.url}${agentLine}`,
+        files: publishedAttachment ? [publishedAttachment] : [],
+      })
     } else {
       const { url: fbUrl, postId } = await postToFacebook(confirm.localPath, confirm.caption)
       if (confirm.approvedDraftId) updateDraft(confirm.approvedDraftId, { status: 'published' })
       if (confirm.adCategoryDirective?.endsWith('_TEMPLATE')) {
-        const catLabel = Object.values(AD_CATEGORIES_BY_LEVEL).flat().find(c => c.designDirective === confirm.adCategoryDirective)?.label ?? confirm.adCategoryDirective
         const fbPhotoId = fbUrl.match(/fbid=(\d+)/)?.[1]
-        recordPost(confirm.adCategoryDirective, catLabel, new Date(), fbPhotoId, postId ?? undefined)
+        recordPost(confirm.adCategoryDirective, templateLabel, new Date(), fbPhotoId, postId ?? undefined)
       }
+
+      // Open a thread for this published ad.
+      const threadName = `✅ ${formatPHT(new Date())} · ${templateLabel}`
+      const thread = await openPublishThread(ch, threadName)
+      await thread.send({
+        content: `✅ **Posted!** **[View on Facebook](${fbUrl})**${agentLine}`,
+        files: publishedAttachment ? [publishedAttachment] : [],
+      })
 
       const adAccountId = process.env.FB_AD_ACCOUNT_ID
       if (adAccountId && postId) {
         const s = loadSettings()
+        // Boost prompt stays in the channel so the user can reply with "boost"
+        // without having to navigate into the thread.
+        const threadHint = thread !== ch ? ` · details in <#${(thread as ThreadChannel).id}>` : ''
         await ch.send(
-          `✅ Posted! **[View on Facebook](${fbUrl})**\n\n` +
+          `✅ Posted!${threadHint}\n\n` +
           `Boost this post?\n` +
           `> ₱${s.boostBudgetPHP}/day · ${s.boostCountry} · ages ${s.boostAgeMin}–${s.boostAgeMax}\n\n` +
           `Reply **boost** to confirm or **skip**.`
@@ -4427,7 +4488,7 @@ async function handleFacebookConfirm(
         })
       } else {
         updateJob(job.id, { status: 'done' })
-        await ch.send(`✅ Posted! **Facebook:** ${fbUrl}`)
+        if (thread !== ch) await ch.send(`✅ Posted — details in <#${(thread as ThreadChannel).id}>`)
       }
     }
   } catch (err: any) {
@@ -4508,7 +4569,9 @@ async function runCoverageFillAndPreview(ch: SendableChannel, missing: CoverageM
             console.warn(`[Coverage] Runway concept image failed for ${item.label} — falling back to library hero: ${err.message}`)
           }
         }
-        const result = await generateImageAd(adBrief, finalHeroAsset ? [finalHeroAsset] : [], item.templateKey)
+        // Co-brand: pass the coverage-check channel so any agent mapped to it
+        // (via the wbs_i_agent_discord_channels table) gets baked into the ad.
+        const result = await generateImageAd(adBrief, finalHeroAsset ? [finalHeroAsset] : [], item.templateKey, { discordChannelId: channelId })
         return { ok: true as const, draft, result, item, slot, heroImageId, targetGeneration }
       } catch (err: any) {
         return { ok: false as const, item, error: err.message as string }
@@ -4525,7 +4588,30 @@ async function runCoverageFillAndPreview(ch: SendableChannel, missing: CoverageM
     }
     const { draft, result, item, slot, heroImageId, targetGeneration } = res
     const safeName = item.label.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()
-    const fullCaption = buildFacebookCaption({ caption: draft.caption, hashtags: draft.hashtags ?? [], ctaText: draft.ctaText ?? '', engagementHook: draft.engagementHook ?? '' })
+    // Pass the resolved agent into the caption so the FB post is co-branded too.
+    const fullCaption = buildFacebookCaption({ caption: draft.caption, hashtags: draft.hashtags ?? [], ctaText: draft.ctaText ?? '', engagementHook: draft.engagementHook ?? '' }, result.agent)
+    // Create a Job for the dashboard so this scheduled render is auditable
+    // and the goal-fit chip surfaces. `discordUserId: 'scheduled'` flags it as
+    // bot-fired (not user-submitted) so the brief flow doesn't try to resume it.
+    const adBriefForJob: AdBrief = {
+      product: `${s.footerRight1 ?? ''} ${s.footerRight2 ?? ''}`.trim() || 'Renaissance Park & Chapels',
+      concept: draft.concept,
+      caption: draft.caption,
+      ctaText: draft.ctaText,
+      agent: result.agent,
+    }
+    const coverageJob = createJob({
+      status: 'rendering',
+      brief: adBriefForJob,
+      assets: [],
+      discordChannelId: channelId,
+      discordUserId: 'scheduled',
+      conversationStep: 'ready',
+    })
+    updateJob(coverageJob.id, {
+      templateKey: result.templateKey,
+      imageUrl: `/outputs/${result.jobId}.png`,
+    })
     batchItems.push({
       templateKey: item.templateKey, label: item.label,
       localPath: result.localPath, fileName: `${safeName}_${result.jobId}.png`,
@@ -5503,7 +5589,8 @@ async function runCoverageRenderPhase(
             console.warn(`[Coverage] Runway concept image failed for ${item.label} — falling back to library hero: ${err.message}`)
           }
         }
-        const result = await generateImageAd(adBrief, finalHeroAsset ? [finalHeroAsset] : [], item.templateKey)
+        // Co-brand with the channel's mapped agent (if any).
+        const result = await generateImageAd(adBrief, finalHeroAsset ? [finalHeroAsset] : [], item.templateKey, { discordChannelId: channelId })
         return { ok: true as const, result, draft, item, slot }
       } catch (err: any) {
         return { ok: false as const, item, error: err.message as string }
@@ -5520,7 +5607,27 @@ async function runCoverageRenderPhase(
     }
     const { result, draft, item, slot } = res
     const safeName = item.label.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()
-    const fullCaption = buildFacebookCaption({ caption: draft.caption, hashtags: draft.hashtags ?? [], ctaText: draft.ctaText ?? '', engagementHook: draft.engagementHook ?? '' })
+    const fullCaption = buildFacebookCaption({ caption: draft.caption, hashtags: draft.hashtags ?? [], ctaText: draft.ctaText ?? '', engagementHook: draft.engagementHook ?? '' }, result.agent)
+    // Create a Job for dashboard auditing + goal-fit chip.
+    const adBriefForJob: AdBrief = {
+      product: `${s.footerRight1 ?? ''} ${s.footerRight2 ?? ''}`.trim() || 'Renaissance Park & Chapels',
+      concept: draft.concept,
+      caption: draft.caption,
+      ctaText: draft.ctaText,
+      agent: result.agent,
+    }
+    const coverageJob = createJob({
+      status: 'rendering',
+      brief: adBriefForJob,
+      assets: [],
+      discordChannelId: channelId,
+      discordUserId: 'scheduled',
+      conversationStep: 'ready',
+    })
+    updateJob(coverageJob.id, {
+      templateKey: result.templateKey,
+      imageUrl: `/outputs/${result.jobId}.png`,
+    })
     batchItems.push({
       templateKey: item.templateKey, label: item.label,
       localPath: result.localPath, fileName: `${safeName}_${result.jobId}.png`,
@@ -6056,11 +6163,12 @@ async function runPipeline(message: Message, job: Job, assets: MediaAsset[]) {
   await ch.send('Generating your Facebook ad image...')
 
   try {
-    const imageResult = await generateImageAd(job.brief, scored)
+    const imageResult = await generateImageAd(job.brief, scored, undefined, { discordChannelId: job.discordChannelId })
 
     updateJob(job.id, {
       status: 'rendering',
       imageUrl: `/outputs/${imageResult.jobId}.png`,
+      templateKey: imageResult.templateKey,
     })
 
     const safeName = job.brief.product.replace(/[^a-zA-Z0-9]/g, '_')
@@ -6069,11 +6177,11 @@ async function runPipeline(message: Message, job: Job, assets: MediaAsset[]) {
     // Use approved Stage 2 copy if available, otherwise fall back to brief data
     const approvedDraft = g.__pendingBriefs!.get(message.author.id)?.approvedPostDraft
     const caption = approvedDraft
-      ? buildFacebookCaption(approvedDraft)
+      ? buildFacebookCaption(approvedDraft, imageResult.agent)
       : [job.brief.product, job.brief.concept].filter(Boolean).join(' — ')
 
     const captionPreview = approvedDraft
-      ? `\n\n**Post caption:**\n\`\`\`\n${buildFacebookCaption(approvedDraft)}\n\`\`\``
+      ? `\n\n**Post caption:**\n\`\`\`\n${buildFacebookCaption(approvedDraft, imageResult.agent)}\n\`\`\``
       : ''
 
     const attachment = new AttachmentBuilder(imageResult.localPath, { name: 'ad-preview.png' })
@@ -6092,7 +6200,7 @@ async function runPipeline(message: Message, job: Job, assets: MediaAsset[]) {
         fileName,
         caption,
         approvedDraftId: approvedDraft?.id,
-        adBrief: { ...job.brief, caption: approvedDraft ? buildFacebookCaption(approvedDraft) : undefined },
+        adBrief: { ...job.brief, caption: approvedDraft ? buildFacebookCaption(approvedDraft, imageResult.agent) : undefined, agent: imageResult.agent },
         heroAsset: scored[0] ?? undefined,
       },
     })

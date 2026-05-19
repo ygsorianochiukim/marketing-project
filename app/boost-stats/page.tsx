@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { BoostCampaignInsights, BoostScaler } from '@/lib/fbInsights'
+import { templateGoalFit, goalConfig, evaluateByGoal, type CampaignGoal } from '@/lib/adPlaybooks'
 
 type DateRange = '1d' | '7d' | '30d' | 'all'
 type Tier = 'winner' | 'mid' | 'loser' | 'ramping'
-type Tab = 'overview' | 'scaler' | 'categories' | 'recommendations' | 'all' | 'settings'
+type Tab = 'overview' | 'scaler' | 'categories' | 'goals' | 'recommendations' | 'all' | 'settings'
 
 type Data = { campaigns: BoostCampaignInsights[]; scaler: BoostScaler; pageId: string; adAccountId: string; range: string }
 
@@ -24,11 +25,11 @@ type AutoSettings = {
 }
 
 const COLORS = {
-  bg: '#0A0A0A', card: '#111111', cardHover: '#1A1A1A',
-  border: '#2A2A2A', borderHi: 'rgba(201,168,76,0.3)',
-  cream: '#F0EDE6', muted: '#7A7870', dim: '#3A3830',
-  gold: '#C9A84C', green: '#4CAF73', yellow: '#E8D08A',
-  red: '#E84C4C', orange: '#E87B4C', blue: '#6496FF',
+  bg: '#e9ddc4', card: '#f3e8cf', cardHover: '#ebdfc5',
+  border: '#c9b88f', borderHi: '#8a6a3b',
+  cream: '#2d2a26', muted: '#5a5a5a', dim: '#8a857a',
+  gold: '#8a6a3b', green: '#5a7a48', yellow: '#a8923b',
+  red: '#a04848', orange: '#a8632b', blue: '#4a6a8a',
 }
 
 const RESPONSIVE_CSS = `
@@ -189,7 +190,7 @@ function CampaignRow({
           <Metric label="Spent" value={`₱${c.spend.toFixed(2)}`} color={c.spend > 0 ? COLORS.cream : COLORS.muted} tooltip="Lifetime spend within the selected date range" />
           <Metric label="Reach" value={c.reach > 0 ? c.reach.toLocaleString() : '—'} tooltip="Unique people who saw the ad" />
           <Metric label="CTR" value={c.ctr > 0 ? `${c.ctr.toFixed(2)}%` : '—'} color={c.ctr > 3 ? COLORS.green : c.ctr > 0 && c.ctr < 1 ? COLORS.orange : COLORS.cream} tooltip="Click-through rate — % of impressions that resulted in a click" />
-          <Metric label="CPM" value={c.cpm > 0 ? `₱${c.cpm.toFixed(0)}` : '—'} color={c.cpm > 0 && c.cpm < 50 ? COLORS.green : c.cpm > 80 ? COLORS.orange : COLORS.cream} tooltip="Cost per 1,000 impressions" />
+          <Metric label="₱ / 1K" value={c.cpm > 0 ? `₱${c.cpm.toFixed(0)}` : '—'} color={c.cpm > 0 && c.cpm < 50 ? COLORS.green : c.cpm > 80 ? COLORS.orange : COLORS.cream} tooltip="Cost per 1,000 impressions (CPM) — what you pay to reach 1,000 eyeballs. NOT the same as cost per Messenger message." />
         </div>
       )}
 
@@ -254,7 +255,7 @@ function PerformanceRow({
         <Metric label="₱/Msg" value={p.costPerMessage > 0 ? `₱${p.costPerMessage.toFixed(2)}` : '—'} color={p.costPerMessage > 0 && p.costPerMessage < 100 ? COLORS.green : p.costPerMessage > 250 ? COLORS.orange : COLORS.cream} />
         <Metric label="Spent" value={`₱${p.spend.toFixed(0)}`} />
         <Metric label="CTR" value={`${p.ctr.toFixed(2)}%`} color={p.ctr > 3 ? COLORS.green : p.ctr < 1.5 ? COLORS.orange : COLORS.cream} />
-        <Metric label="CPM" value={`₱${p.cpm.toFixed(0)}`} color={p.cpm < 50 ? COLORS.green : p.cpm > 80 ? COLORS.orange : COLORS.cream} />
+        <Metric label="₱ / 1K" value={`₱${p.cpm.toFixed(0)}`} color={p.cpm < 50 ? COLORS.green : p.cpm > 80 ? COLORS.orange : COLORS.cream} tooltip="Cost per 1,000 impressions (CPM)" />
         <Metric label="Reach" value={p.reach.toLocaleString()} />
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: `1px solid ${COLORS.border}` }}>
@@ -473,19 +474,23 @@ export default function BoostStatsPage() {
 
   if (loading) {
     return (
-      <div className="bs-page" style={{ minHeight: '100vh', padding: '40px 24px', maxWidth: 1100, margin: '0 auto' }}>
-        <style>{RESPONSIVE_CSS}</style>
-        <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: COLORS.muted }}>Loading boost stats from Facebook...</p>
+      <div style={{ minHeight: '100vh', background: COLORS.bg }}>
+        <div className="bs-page" style={{ padding: '40px 24px', maxWidth: 1100, margin: '0 auto' }}>
+          <style>{RESPONSIVE_CSS}</style>
+          <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 15, color: COLORS.muted }}>Loading boost stats from Facebook...</p>
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bs-page" style={{ minHeight: '100vh', padding: '40px 24px', maxWidth: 1100, margin: '0 auto' }}>
-        <style>{RESPONSIVE_CSS}</style>
-        <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: COLORS.red }}>⚠️ {error}</p>
-        <button onClick={load} style={{ marginTop: 16, padding: '6px 14px', background: 'transparent', border: `1px solid ${COLORS.borderHi}`, borderRadius: 6, color: COLORS.gold, fontFamily: 'DM Mono, monospace', fontSize: 12, cursor: 'pointer' }}>RETRY</button>
+      <div style={{ minHeight: '100vh', background: COLORS.bg }}>
+        <div className="bs-page" style={{ padding: '40px 24px', maxWidth: 1100, margin: '0 auto' }}>
+          <style>{RESPONSIVE_CSS}</style>
+          <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 15, color: COLORS.red }}>⚠️ {error}</p>
+          <button onClick={load} style={{ marginTop: 16, padding: '6px 14px', background: 'transparent', border: `1px solid ${COLORS.borderHi}`, borderRadius: 6, color: COLORS.gold, fontFamily: 'DM Mono, monospace', fontSize: 12, cursor: 'pointer' }}>RETRY</button>
+        </div>
       </div>
     )
   }
@@ -495,7 +500,8 @@ export default function BoostStatsPage() {
   const { scaler } = data
 
   return (
-    <div className="bs-page" style={{ minHeight: '100vh', padding: '40px 24px', maxWidth: 1100, margin: '0 auto', color: COLORS.cream }}>
+    <div style={{ minHeight: '100vh', background: COLORS.bg }}>
+    <div className="bs-page" style={{ padding: '40px 24px', maxWidth: 1100, margin: '0 auto', color: COLORS.cream }}>
       <style>{RESPONSIVE_CSS}</style>
 
       {toast && (
@@ -514,17 +520,21 @@ export default function BoostStatsPage() {
 
       {/* Header */}
       <div className="bs-header" style={{ marginBottom: 24 }}>
-        <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, color: COLORS.muted, letterSpacing: '0.3em', marginBottom: 8 }}>
-          AD GENERATOR
+        <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 14, color: COLORS.gold, letterSpacing: '0.3em', marginBottom: 8, textTransform: 'uppercase' }}>
+          Ad Generator
         </p>
-        <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 36, fontWeight: 300, color: COLORS.cream, marginBottom: 16 }}>
+        <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 56, fontWeight: 700, color: COLORS.cream, marginBottom: 8, letterSpacing: '-0.02em', lineHeight: 1 }}>
           Boost Stats
         </h1>
+        <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 15, color: COLORS.muted, marginBottom: 20 }}>
+          Live performance and burn rate from your Facebook ad account.
+        </p>
+        <hr style={{ border: 0, borderTop: `1px solid ${COLORS.border}`, marginBottom: 4 }} />
       </div>
 
       {/* Controls bar: date range, search, sort, refresh */}
       <div className="bs-controls" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
-        <a href="/" style={{ padding: '8px 16px', border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.muted, fontFamily: 'DM Mono, monospace', fontSize: 11, letterSpacing: '0.1em', textDecoration: 'none' }}>← HOME</a>
+        <a href="/dashboard" style={{ padding: '8px 16px', border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.muted, fontFamily: 'DM Mono, monospace', fontSize: 11, letterSpacing: '0.1em', textDecoration: 'none' }}>← DASHBOARD</a>
         <select value={range} onChange={e => setRange(e.target.value as DateRange)} style={{
           padding: '8px 12px', background: COLORS.card, border: `1px solid ${COLORS.border}`,
           borderRadius: 6, color: COLORS.cream, fontFamily: 'DM Mono, monospace', fontSize: 11, cursor: 'pointer',
@@ -601,6 +611,7 @@ export default function BoostStatsPage() {
           ['overview', 'OVERVIEW'],
           ['scaler', 'SCALER'],
           ['categories', 'BY CATEGORY'],
+          ['goals', 'BY GOAL'],
           ['recommendations', 'RECOMMENDATIONS'],
           ['all', 'ALL'],
           ['settings', 'SETTINGS'],
@@ -637,13 +648,17 @@ export default function BoostStatsPage() {
         <CategoriesTab data={data} />
       )}
 
+      {tab === 'goals' && (
+        <GoalsTab data={data} pageId={data.pageId} adAccountId={data.adAccountId} onAction={onAction} busy={busy} />
+      )}
+
       {tab === 'recommendations' && (
         <RecommendationsTab recs={recs} loading={recsLoading} reload={loadRecommendations} />
       )}
 
       {tab === 'all' && (
         <div>
-          <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, color: COLORS.muted, letterSpacing: '0.2em', marginBottom: 12 }}>
+          <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 13, color: COLORS.muted, letterSpacing: '0.15em', marginBottom: 12, textTransform: 'uppercase' }}>
             ALL CAMPAIGNS — {visibleCampaigns.length}
           </p>
           {visibleCampaigns.map(c => (
@@ -663,6 +678,7 @@ export default function BoostStatsPage() {
       {tab === 'settings' && settings && (
         <SettingsTab settings={settings} onSave={saveSettings} />
       )}
+    </div>
     </div>
   )
 }
@@ -692,7 +708,7 @@ function OverviewTab({
 }) {
   return (
     <div>
-      <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, color: COLORS.muted, letterSpacing: '0.2em', marginBottom: 12 }}>
+      <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 13, color: COLORS.muted, letterSpacing: '0.15em', marginBottom: 12, textTransform: 'uppercase' }}>
         ACTIVE CAMPAIGNS — {active.length}
       </p>
       {active.length === 0 ? (
@@ -814,7 +830,7 @@ function CategoriesTab({ data }: { data: Data }) {
 
   return (
     <div>
-      <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, color: COLORS.muted, letterSpacing: '0.2em', marginBottom: 12 }}>
+      <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 13, color: COLORS.muted, letterSpacing: '0.15em', marginBottom: 12, textTransform: 'uppercase' }}>
         AGGREGATED BY CATEGORY — {rows.length} types
       </p>
       {rows.length === 0 ? (
@@ -832,10 +848,201 @@ function CategoriesTab({ data }: { data: Data }) {
             <Metric label="Avg ₱/Msg" value={r.avgCostPerMessage > 0 ? `₱${r.avgCostPerMessage.toFixed(2)}` : '—'} />
             <Metric label="Total Spend" value={`₱${r.totalSpend.toFixed(0)}`} />
             <Metric label="Avg CTR" value={`${r.avgCTR.toFixed(2)}%`} />
-            <Metric label="Avg CPM" value={`₱${r.avgCPM.toFixed(0)}`} />
+            <Metric label="Avg ₱ / 1K" value={`₱${r.avgCPM.toFixed(0)}`} tooltip="Average cost per 1,000 impressions across this category" />
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function GoalsTab({
+  data, pageId, adAccountId, onAction, busy,
+}: {
+  data: Data
+  pageId: string
+  adAccountId: string
+  onAction: (action: 'pause' | 'resume' | 'delete' | 'boost-again', payload: Record<string, string>, opts?: { spend?: number; label?: string }) => Promise<void>
+  busy: string | null
+}) {
+  // Group campaigns by their template's goal-fit. Campaigns whose template
+  // has no goal mapping (custom prompts / unknown templates) bucket under
+  // "Unclassified" and are scored by the legacy unified ₱/msg rule.
+  const groups = useMemo(() => {
+    const out: Record<CampaignGoal | 'unclassified', BoostCampaignInsights[]> = {
+      engagement: [], reach: [], reactivation: [], unclassified: [],
+    }
+    for (const c of data.campaigns) {
+      const goal = templateGoalFit(c.templateKey)
+      if (goal) out[goal].push(c)
+      else out.unclassified.push(c)
+    }
+    return out
+  }, [data.campaigns])
+
+  // Per-group totals + winner-rate using each goal's own KPI thresholds.
+  const summary = (goal: CampaignGoal) => {
+    const list = groups[goal]
+    const config = goalConfig(goal)
+    let winners = 0, losers = 0, ramping = 0, mid = 0
+    let totalSpend = 0, totalMessages = 0, totalReach = 0
+    for (const c of list) {
+      totalSpend += c.spend
+      totalMessages += c.messagingConversations
+      totalReach += c.reach
+      const ev = evaluateByGoal(c)
+      if (ev?.tier === 'winner') winners++
+      else if (ev?.tier === 'loser') losers++
+      else if (ev?.tier === 'ramping') ramping++
+      else mid++
+    }
+    return { config, list, winners, losers, ramping, mid, totalSpend, totalMessages, totalReach }
+  }
+
+  const sections: Array<{ goal: CampaignGoal; summary: ReturnType<typeof summary> }> = [
+    { goal: 'engagement', summary: summary('engagement') },
+    { goal: 'reach', summary: summary('reach') },
+    { goal: 'reactivation', summary: summary('reactivation') },
+  ]
+
+  const goalEmoji: Record<CampaignGoal, string> = { engagement: '📨', reach: '📣', reactivation: '🎯' }
+  const goalAccent: Record<CampaignGoal, string> = {
+    engagement: COLORS.green,
+    reach: COLORS.gold,
+    reactivation: COLORS.blue,
+  }
+
+  return (
+    <div>
+      <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 13, color: COLORS.muted, letterSpacing: '0.15em', marginBottom: 16, textTransform: 'uppercase' }}>
+        Grouped by template goal-fit — each scored by its own KPI
+      </p>
+
+      {sections.map(({ goal, summary: s }) => {
+        if (s.list.length === 0) return null
+        const accent = goalAccent[goal]
+        return (
+          <div key={goal} style={{ marginBottom: 32 }}>
+            <div className="bs-card" style={{
+              background: COLORS.card, border: `1px solid ${accent}55`, borderLeft: `3px solid ${accent}`,
+              borderRadius: 10, padding: '16px 20px', marginBottom: 12,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
+                <div>
+                  <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, color: COLORS.cream, fontWeight: 700, marginBottom: 4 }}>
+                    {goalEmoji[goal]} {s.config.label}
+                    <span style={{ fontSize: 12, color: COLORS.muted, marginLeft: 10, fontWeight: 400 }}>· {s.list.length} campaign{s.list.length === 1 ? '' : 's'}</span>
+                  </p>
+                  <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
+                    {s.config.description}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  <Metric label="Winners" value={String(s.winners)} color={COLORS.green} />
+                  <Metric label="Mid" value={String(s.mid)} color={COLORS.yellow} />
+                  <Metric label="Losers" value={String(s.losers)} color={COLORS.red} />
+                  <Metric label="Ramping" value={String(s.ramping)} color={COLORS.blue} />
+                </div>
+              </div>
+              <div className="bs-metric-grid" style={{ display: 'flex', gap: 22, flexWrap: 'wrap', paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
+                <Metric label="Primary KPI" value={s.config.primaryKpi === 'costPerMessage' ? '₱ / Message' : s.config.primaryKpi === 'cpm' ? '₱ / 1K Impressions' : 'Reach'} color={accent} />
+                <Metric label="Winner under" value={s.config.primaryKpi === 'reach' ? `${s.config.loserThreshold.toLocaleString()}+ reach` : `₱${s.config.winnerThreshold}`} color={COLORS.green} />
+                <Metric label="Total Spend" value={`₱${s.totalSpend.toFixed(0)}`} />
+                <Metric label="Messages" value={s.totalMessages > 0 ? String(s.totalMessages) : '—'} color={s.totalMessages > 0 ? COLORS.green : COLORS.cream} />
+                <Metric label="Total Reach" value={s.totalReach.toLocaleString()} />
+              </div>
+            </div>
+            {s.list.map(c => (
+              <GoalCampaignRow key={c.campaignId} c={c} goal={goal} pageId={pageId} adAccountId={adAccountId} onAction={onAction} busy={busy} />
+            ))}
+          </div>
+        )
+      })}
+
+      {groups.unclassified.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, color: COLORS.muted, letterSpacing: '0.15em', marginBottom: 8 }}>
+            UNCLASSIFIED — {groups.unclassified.length} campaign{groups.unclassified.length === 1 ? '' : 's'}
+          </p>
+          <p style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', fontSize: 12, color: COLORS.dim, marginBottom: 12 }}>
+            Custom-prompt ads or campaigns predating template tagging. No goal-fit, scored under the legacy unified ₱/msg rule.
+          </p>
+          {groups.unclassified.map(c => (
+            <GoalCampaignRow key={c.campaignId} c={c} goal={null} pageId={pageId} adAccountId={adAccountId} onAction={onAction} busy={busy} />
+          ))}
+        </div>
+      )}
+
+      {data.campaigns.length === 0 && (
+        <p style={{ color: COLORS.muted, fontSize: 13, padding: '20px 0' }}>No campaigns yet in this range.</p>
+      )}
+    </div>
+  )
+}
+
+function GoalCampaignRow({
+  c, goal, pageId, adAccountId, onAction, busy,
+}: {
+  c: BoostCampaignInsights
+  goal: CampaignGoal | null
+  pageId: string
+  adAccountId: string
+  onAction: (action: 'pause' | 'resume' | 'delete' | 'boost-again', payload: Record<string, string>, opts?: { spend?: number; label?: string }) => Promise<void>
+  busy: string | null
+}) {
+  const ev = evaluateByGoal(c)
+  const tier = ev?.tier ?? (
+    c.spend < 100 ? 'ramping' :
+    c.costPerMessage > 0 && c.costPerMessage < 100 ? 'winner' :
+    c.costPerMessage > 250 ? 'loser' : 'mid'
+  )
+  const tierColor: Record<typeof tier, string> = {
+    winner: COLORS.green, mid: COLORS.yellow, loser: COLORS.red, ramping: COLORS.blue,
+  }
+  const tierLabel: Record<typeof tier, string> = {
+    winner: '🏆 WINNER', mid: '🟡 MID', loser: '🔴 LOSER', ramping: '⏳ RAMPING',
+  }
+  const thisBusy = busy === c.campaignId
+  return (
+    <div className="bs-card" style={{
+      background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '14px 18px', marginBottom: 8,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, color: COLORS.muted, marginBottom: 4 }}>
+            {formatPHT(c.createdTime)} {c.templateKey && <span style={{ color: COLORS.dim }}>· {c.templateKey.replace('_TEMPLATE', '')}</span>}
+          </p>
+          <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 16, color: COLORS.cream }}>
+            {c.label ?? c.campaignName}
+          </p>
+          {ev && (
+            <p style={{ fontSize: 11, color: COLORS.muted, fontStyle: 'italic', marginTop: 4 }}>
+              {ev.reason}
+            </p>
+          )}
+        </div>
+        <Pill label={tierLabel[tier]} color={tierColor[tier]} />
+      </div>
+      <div className="bs-metric-grid" style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <Metric label="Messages" value={c.messagingConversations > 0 ? String(c.messagingConversations) : '—'} color={c.messagingConversations > 0 ? COLORS.green : COLORS.cream} />
+        <Metric label="₱/Msg" value={c.costPerMessage > 0 ? `₱${c.costPerMessage.toFixed(0)}` : '—'} color={goal === 'engagement' || goal === 'reactivation' ? (c.costPerMessage > 0 && c.costPerMessage < (goal === 'engagement' ? 100 : 150) ? COLORS.green : COLORS.cream) : COLORS.dim} />
+        <Metric label="₱ / 1K" value={c.cpm > 0 ? `₱${c.cpm.toFixed(0)}` : '—'} color={goal === 'reach' ? (c.cpm > 0 && c.cpm < 30 ? COLORS.green : c.cpm > 80 ? COLORS.orange : COLORS.cream) : COLORS.dim} tooltip="Cost per 1,000 impressions" />
+        <Metric label="Reach" value={c.reach > 0 ? c.reach.toLocaleString() : '—'} color={goal === 'reach' ? COLORS.cream : COLORS.dim} />
+        <Metric label="Spent" value={`₱${c.spend.toFixed(0)}`} />
+        <Metric label="CTR" value={c.ctr > 0 ? `${c.ctr.toFixed(2)}%` : '—'} />
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: `1px solid ${COLORS.border}` }}>
+        <LinkButton label="VIEW POST →" color={COLORS.blue} href={postUrl(pageId, c.postPhotoId)} />
+        <LinkButton label="ADS MANAGER →" color={COLORS.gold} href={adsManagerUrl(adAccountId, c.campaignId)} />
+        {c.adStatus === 'ACTIVE' && (
+          <Button label={thisBusy ? '...' : 'PAUSE'} color={COLORS.orange} disabled={thisBusy}
+            onClick={() => onAction('pause', { campaignId: c.campaignId }, { spend: c.spend, label: c.label ?? c.campaignName })} />
+        )}
+        {c.postPhotoId && (
+          <Button label={thisBusy ? '...' : 'BOOST AGAIN'} color={COLORS.yellow} disabled={thisBusy}
+            onClick={() => onAction('boost-again', { postId: c.postPhotoId })} />
+        )}
+      </div>
     </div>
   )
 }

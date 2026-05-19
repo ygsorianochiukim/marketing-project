@@ -138,7 +138,26 @@ const HARD_STOP_PATTERNS: RegExp[] = [
   /\b(K-12|college entrance|UPCAT|ACET|graduation stress|grade|uni life|dorm|iskolar)\b/i,
 ]
 
-function isHardStop(text: string): string | null {
+// Earthquake / seismic activity carve-out — when a Google Trends Region 12
+// signal mentions earthquake-related terms, we WANT it through (memorial park
+// brand actively monitors local seismic events). The disaster hard-stop
+// still applies to other sources (news headlines, Reddit) and to other
+// disaster types (typhoons, floods, drug war, etc.).
+const EARTHQUAKE_RE = /\b(earthquake|lindol|aftershock|tremor|magnitude|seismic|pagyanig|yanig)\b/i
+
+// True when a signal is an editorial-prioritized seismic event from PH-12.
+// Used to bypass Claude's scoring (which rates memorial brands "opportunistic"
+// on disaster topics by default) AND the topic/tone cooldowns in
+// getQualifiedSignals — earthquakes are explicit business priority.
+function isEarthquakeSignal(s: Signal): boolean {
+  return s.source === 'google_trends' && EARTHQUAKE_RE.test(s.text)
+}
+
+function isHardStop(text: string, source?: SignalSource): string | null {
+  // Earthquake exception: allow Google Trends Region 12 seismic signals through.
+  if (source === 'google_trends' && EARTHQUAKE_RE.test(text)) {
+    return null
+  }
   const patterns = [
     { re: HARD_STOP_PATTERNS[0], reason: 'political/partisan content' },
     { re: HARD_STOP_PATTERNS[1], reason: 'violent/traumatic death or disaster' },
@@ -338,10 +357,31 @@ export async function runSurfacePull(): Promise<{ added: number; discarded: numb
 
     if (isDuplicate(signals, id)) continue
 
-    const hardStop = isHardStop(text)
+    const hardStop = isHardStop(text, source)
     if (hardStop) {
       signals.push({ id, text, source, cadence: 'surface', fetchedAt: now, status: 'discarded', discardReason: hardStop })
       discarded++
+      continue
+    }
+
+    // Earthquake fast-path — Google Trends Region 12 seismic signals are
+    // editorially prioritized. Skip Claude scoring (which would rate them
+    // "opportunistic" per the default rubric) and auto-approve with max
+    // fitScore so they jump to the top of the qualified pool.
+    if (source === 'google_trends' && EARTHQUAKE_RE.test(text)) {
+      const sig: Signal = {
+        id, text, source, cadence: 'surface', fetchedAt: now,
+        fitScore: 9,
+        toneTag: 'quiet_grief',
+        topicTag: 'current_news',
+        generationTag: 'all',
+        fitReason: 'Auto-prioritized: Region 12 seismic event',
+        status: 'approved',
+        seenCount: 1,
+      }
+      signals.push(sig)
+      added++
+      console.log(`[Signals] Earthquake fast-path approved: "${text}"`)
       continue
     }
 
@@ -507,9 +547,17 @@ export function getQualifiedSignals(limit = 5): Signal[] {
 
   return signals
     .filter(s => s.status === 'approved' && s.fitScore && s.fitScore >= 7)
-    .filter(s => s.source === 'ph_calendar' || !s.topicTag || !isTopicOnCooldown(s.topicTag))
-    .filter(s => s.source === 'ph_calendar' || !s.toneTag || (toneFreq[s.toneTag] ?? 0) < 2)
-    .sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0))
+    // PH calendar holidays and earthquake fast-path signals bypass topic
+    // cooldown — both are editorially prioritized and time-sensitive.
+    .filter(s => s.source === 'ph_calendar' || isEarthquakeSignal(s) || !s.topicTag || !isTopicOnCooldown(s.topicTag))
+    .filter(s => s.source === 'ph_calendar' || isEarthquakeSignal(s) || !s.toneTag || (toneFreq[s.toneTag] ?? 0) < 2)
+    // Earthquake signals sort to the very top, then by fitScore desc.
+    .sort((a, b) => {
+      const aQuake = isEarthquakeSignal(a) ? 1 : 0
+      const bQuake = isEarthquakeSignal(b) ? 1 : 0
+      if (aQuake !== bQuake) return bQuake - aQuake
+      return (b.fitScore ?? 0) - (a.fitScore ?? 0)
+    })
     .slice(0, limit)
 }
 

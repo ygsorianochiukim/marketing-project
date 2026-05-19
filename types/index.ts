@@ -20,6 +20,17 @@ export interface MediaAsset {
   feedback?: string
 }
 
+export interface AgentProfile {
+  id: number
+  fullName: string
+  firstName: string | null
+  lastName: string | null
+  status: 'Registered' | 'Accredited'
+  isActive: boolean
+  phone: string | null
+  discordId: string
+}
+
 export interface AdBrief {
   product: string
   concept: string
@@ -33,6 +44,10 @@ export interface AdBrief {
   location?: string
   ctaText?: string
   caption?: string
+  // Co-branding: the submitting agent's profile (looked up by Discord user ID
+  // against the Laravel core-system). When present, the agent block is
+  // embedded in the ad image and prepended to the FB caption.
+  agent?: AgentProfile
 }
 
 export interface Job {
@@ -49,4 +64,8 @@ export interface Job {
   discordChannelId: string
   discordUserId: string
   conversationStep: 'brief' | 'clarifying' | 'ready'
+  /** Template-key the rendered ad used (e.g. CONVERSATIONAL_TEMPLATE).
+   * Surfaces the goal-fit chip on the dashboard and joins with
+   * BoostCampaignInsights to score campaigns by their template's KPI. */
+  templateKey?: string
 }

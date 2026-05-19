@@ -7,14 +7,22 @@ import https from 'https'
 import http from 'http'
 import { processHeroImage, processLogo, processIconSquare } from './imageComposer'
 import { loadSettings, loadKnowledgeBase, loadKnowledgeBaseSync, BrandSettings } from './brandSettings'
-import { fetchPageReviews, getRandomReview, type PageReview } from './facebook'
 import { buildAdHTML, AdContent } from './adTemplates'
-import { AdBrief, MediaAsset } from '@/types'
+import { fetchAgentByChannelId, agentBadge } from './agentStore'
+import { AdBrief, MediaAsset, AgentProfile } from '@/types'
 
 export interface ImageAdResult {
   localPath: string
   buffer: Buffer
   jobId: string
+  /** When a Discord user ID was supplied AND an active agent matched, this
+   * is their resolved profile. Callers can pass it to `buildFacebookCaption`
+   * to prepend the co-branding block to the FB caption. */
+  agent?: AgentProfile
+  /** The template key the render used (e.g. CONVERSATIONAL_TEMPLATE).
+   * Empty when the renderer used a custom design-reprompt prompt instead
+   * of a named template. Persist on the Job to surface goal-fit chips. */
+  templateKey?: string
 }
 
 // Convert "#1f4a1f" -> "31,74,31" so templates can build rgba(...) expressions
@@ -591,103 +599,6 @@ This is a clean, informative ad that teaches the audience something — a surpri
 /*BOX1_DETAIL*/ to /*BOX3_DETAIL*/ — 1 sentence max 18 words each. Specific fact or benefit. Use EXACT prices/service names from knowledge base if relevant.
 
 /*CTA*/ — 2–4 words e.g. "INQUIRE NOW" or "MAKIPAG-USAP SA AMIN"
-
-━━━ SCAFFOLD ━━━
-${scaffold}
-
-Output ONLY the filled-in HTML — no explanation, no markdown fences.`
-}
-
-// ─── Social Proof / Testimonial template ──────────────────────────────────────
-function buildSocialProofPrompt(brief: AdBrief, s: BrandSettings, review?: PageReview): string {
-  const gold     = s.accentColor || '#d4a017'
-  const panelDarkRgb = hexToRgb(s.footerBg || '#1f4a1f')
-  const offWhite = s.offWhite    || '#ffffff'
-
-  const scaffold = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,700;1,400;1,700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-html,body{width:680px;height:850px;margin:0;padding:0;overflow:hidden;font-family:'Inter',sans-serif;}
-.bg{width:680px;height:850px;position:relative;}
-.hero{position:absolute;inset:0;background-image:url({{HERO_URI}});background-size:cover;background-position:center;}
-.overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(${panelDarkRgb},0.55) 0%,rgba(${panelDarkRgb},0.18) 32%,rgba(${panelDarkRgb},0.68) 65%,rgba(${panelDarkRgb},0.78) 100%);}
-.content{position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;padding:36px 60px 26px;box-sizing:border-box;text-align:center;}
-.logo-top{flex-shrink:0;margin-bottom:4px;}
-.logo-img{max-width:130px;height:auto;filter:brightness(0) invert(1) sepia(1) saturate(2.4) hue-rotate(4deg) brightness(0.78);}
-.quote-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.stars{font-size:22px;color:${gold};letter-spacing:5px;margin-bottom:12px;}
-.quote-mark{font-family:'Cormorant Garamond',Georgia,serif;font-size:110px;line-height:0.6;color:${gold};opacity:0.88;margin-bottom:8px;}
-.quote-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:/*QUOTE_SIZE*/px;font-style:italic;color:${offWhite};line-height:1.5;margin-bottom:20px;text-shadow:0 2px 12px rgba(45,74,45,0.7);}
-.divider{width:36px;height:2px;background:${gold};margin:0 auto 12px;}
-.attribution{font-size:11px;letter-spacing:0.2em;color:${gold};font-weight:600;text-transform:uppercase;}
-.eyebrow-bottom{flex-shrink:0;font-size:9px;letter-spacing:0.35em;color:rgba(255,255,255,0.55);font-weight:600;text-transform:uppercase;padding-top:10px;}
-</style>
-</head>
-<body>
-<div class="bg">
-  <div class="hero"></div>
-  <div class="overlay"></div>
-  <div class="content">
-    <div class="logo-top"><img src="{{LOGO_URI}}" class="logo-img" onerror="this.style.display='none'"></div>
-    <div class="quote-center">
-      <div class="stars">/*STARS*/</div>
-      <div class="quote-mark">"</div>
-      <div class="quote-text">/*QUOTE*/</div>
-      <div class="divider"></div>
-      <div class="attribution">— /*ATTRIBUTION*/</div>
-    </div>
-    <div class="eyebrow-bottom">/*EYEBROW_BOTTOM*/</div>
-  </div>
-</div>
-</body>
-</html>`
-
-  if (review) {
-    const quoteSize = review.text.length <= 40 ? 30 : review.text.length <= 60 ? 26 : 22
-    const filledScaffold = scaffold
-      .replace('/*QUOTE_SIZE*/', String(quoteSize))
-      .replace('/*STARS*/', '★'.repeat(review.rating))
-      .replace('/*QUOTE*/', review.text)
-      .replace('/*ATTRIBUTION*/', review.reviewerName)
-
-    return `You are completing a Social Proof / Testimonial Ad for a Philippine memorial park brand.
-
-Business: ${brief.product ?? 'Renaissance Park & Chapels'}
-
-The quote, stars, and attribution are ALREADY FILLED from a real Facebook review — do NOT change them.
-
-Fill in ONLY:
-/*EYEBROW_BOTTOM*/ — short trust line. e.g. "PINAGKAKATIWALAANG PANGKOMUNIDAD" or "TRUSTED BY FAMILIES ACROSS SOUTH COTABATO"
-
-━━━ SCAFFOLD ━━━
-${filledScaffold}
-
-Output ONLY the filled-in HTML — no explanation, no markdown fences.`
-  }
-
-  return `You are filling in a Social Proof / Testimonial Ad template for a Philippine memorial park brand.
-
-Business: ${brief.product ?? 'Renaissance Park & Chapels'}
-Concept:  ${brief.concept ?? ''}
-${brief.caption ? `Caption: "${brief.caption}"` : ''}
-
-This is a testimonial-style Facebook ad. The quote is the hero. It should feel like something a real Filipino family would genuinely say — warm, grateful, specific. Not corporate, not salesy.
-
-━━━ YOUR JOB ━━━
-
-/*QUOTE_SIZE*/ — number: 30 for ≤40 chars · 26 for 41–60 chars · 22 for 61+ chars
-
-/*STARS*/ — ★★★★★ (almost always 5 stars)
-
-/*QUOTE*/ — 1–2 sentences as a genuine family testimonial, Filipino or Taglish. Max 35 words. Specific and emotional — mentions a real feeling, a real moment, or a real relief.
-  Example: "Hindi namin inakala na ganito kaganda ang lugar. Ngayon pakiramdam namin ay nasa mabuting kamay si Nanay."
-
-/*ATTRIBUTION*/ — plausible Filipino name + town. e.g. "Maria Santos, Koronadal City" or "Ang Pamilya Reyes, General Santos"
-
-/*EYEBROW_BOTTOM*/ — short trust line. e.g. "PINAGKAKATIWALAANG PANGKOMUNIDAD" or "TRUSTED BY FAMILIES ACROSS SOUTH COTABATO"
 
 ━━━ SCAFFOLD ━━━
 ${scaffold}
@@ -1691,9 +1602,82 @@ ${revisionNotes ? `Revision notes — apply these on top of the defaults above:\
 Output ONLY the complete HTML document — no explanation, no markdown fences.`
 }
 
+// ─── Agent co-branding block ───────────────────────────────────────────────────
+// Renders a footer band overlay with the submitting agent's name, accreditation
+// badge, and contact phone. Positioned absolute bottom z-index 30 so it sits
+// on top of whichever footer the underlying template chose. Injected into the
+// rendered HTML AFTER Claude returns, so it applies uniformly across all 16
+// templates without per-scaffold edits.
+function buildAgentBlock(agent: AgentProfile): { css: string; html: string } {
+  const css = `
+.agent-block{position:absolute;bottom:0;left:0;right:0;z-index:30;
+  background:rgba(7,55,47,0.94);border-top:1px solid #b28648;
+  padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  font-family:'Inter','Helvetica Neue',Arial,sans-serif;}
+.agent-block .ab-name{font-size:11.5px;font-weight:700;color:#f7f3ee;letter-spacing:0.04em;white-space:nowrap;}
+.agent-block .ab-role{font-size:9px;color:#d4a96a;font-style:italic;letter-spacing:0.22em;text-transform:uppercase;white-space:nowrap;}
+.agent-block .ab-phone{font-size:11px;color:#f7f3ee;font-family:'DM Mono','Courier New',ui-monospace,monospace;letter-spacing:0.08em;white-space:nowrap;}
+`
+  const name = escapeHtml(agent.fullName || 'Agent')
+  const role = escapeHtml(agentBadge(agent))
+  const phone = agent.phone ? escapeHtml(agent.phone) : ''
+  const html = `<div class="agent-block">
+  <div class="ab-name">${name}</div>
+  <div class="ab-role">${role}</div>
+  ${phone ? `<div class="ab-phone">${phone}</div>` : ''}
+</div>`
+  return { css, html }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+// Injects the agent block into a fully-rendered HTML document. Tries to put
+// the CSS inside the existing <style> block; falls back to a new <style> tag
+// before </head> if none exists. The HTML markup is appended before </body>.
+function injectAgentBlock(html: string, agent: AgentProfile): string {
+  const { css, html: blockHtml } = buildAgentBlock(agent)
+
+  // Inject CSS: prefer ending of last <style> block, else inject one before </head>
+  if (/<\/style>/i.test(html)) {
+    html = html.replace(/<\/style>/i, css + '</style>')
+  } else if (/<\/head>/i.test(html)) {
+    html = html.replace(/<\/head>/i, `<style>${css}</style></head>`)
+  }
+
+  // Inject HTML: append before </body>; fall back to before </html> if missing
+  if (/<\/body>/i.test(html)) {
+    html = html.replace(/<\/body>/i, `${blockHtml}</body>`)
+  } else if (/<\/html>/i.test(html)) {
+    html = html.replace(/<\/html>/i, `${blockHtml}</html>`)
+  } else {
+    html = html + blockHtml
+  }
+
+  return html
+}
+
 // ─── Main entry point ──────────────────────────────────────────────────────────
-export async function generateImageAd(brief: AdBrief, assets: MediaAsset[], revisionNotes?: string): Promise<ImageAdResult> {
+export async function generateImageAd(
+  brief: AdBrief,
+  assets: MediaAsset[],
+  revisionNotes?: string,
+  opts?: { discordChannelId?: string },
+): Promise<ImageAdResult> {
   console.log('[ImageGen] Starting image ad generation')
+
+  // Attach agent profile when a Discord channel ID is provided. Each channel
+  // in core-system is mapped 1:1 to an agent. The fetch is fault-tolerant —
+  // co-branding is skipped on lookup failure rather than blocking the render.
+  if (opts?.discordChannelId && !brief.agent) {
+    const agent = await fetchAgentByChannelId(opts.discordChannelId).catch(() => null)
+    if (agent) {
+      brief = { ...brief, agent }
+      console.log(`[ImageGen] Co-branding for agent: ${agent.fullName} (${agent.status})`)
+    }
+  }
 
   await loadKnowledgeBase() // warm cache so sync build*Prompt helpers can read it
   const { hero, logo, icon } = await classifyAssets(assets)
@@ -1756,7 +1740,6 @@ export async function generateImageAd(brief: AdBrief, assets: MediaAsset[], revi
   // All scaffold templates (no photo + photo-required)
   const ALL_TEMPLATES = new Set([
     ...NO_PHOTO_TEMPLATES,
-    'SOCIAL_PROOF_TEMPLATE',
     'PROBLEM_SOLUTION_TEMPLATE',
     'LIFESTYLE_TEMPLATE',
     'LIGHT_EMOTIONAL_TEMPLATE',
@@ -1790,12 +1773,6 @@ export async function generateImageAd(brief: AdBrief, assets: MediaAsset[], revi
   } else if (revisionNotes === 'EDUCATIONAL_TEMPLATE') {
     console.log('[ImageGen] Template: Educational')
     html = await generateHtmlAd(buildEducationalPrompt(brief, s), '', wordmarkUri, iconUri, brief)
-  } else if (revisionNotes === 'SOCIAL_PROOF_TEMPLATE') {
-    console.log('[ImageGen] Template: Social Proof')
-    const reviews = await fetchPageReviews()
-    const review = getRandomReview(reviews) ?? undefined
-    if (review) console.log(`[ImageGen] Using real FB review from ${review.reviewerName} (${review.rating}★)`)
-    html = await generateHtmlAd(buildSocialProofPrompt(brief, s, review), heroUri!, wordmarkUri, iconUri, brief)
   } else if (revisionNotes === 'OFFER_PROMO_TEMPLATE') {
     console.log('[ImageGen] Template: Offer / Promo')
     html = await generateHtmlAd(buildOfferPromoPrompt(brief, s), heroUri!, wordmarkUri, iconUri, brief)
@@ -1842,6 +1819,12 @@ export async function generateImageAd(brief: AdBrief, assets: MediaAsset[], revi
     html = buildAdHTML(content, heroUri!, iconUri, wordmarkUri)
   }
 
+  // Co-branding: bake the agent footer band into the HTML after Claude's
+  // output is composed. Applies uniformly to all 16 templates + the fallback.
+  if (brief.agent) {
+    html = injectAgentBlock(html, brief.agent)
+  }
+
   console.log('[ImageGen] Rendering with Puppeteer...')
   const browser = await puppeteer.launch({
     headless: true,
@@ -1869,7 +1852,13 @@ export async function generateImageAd(brief: AdBrief, assets: MediaAsset[], revi
     fs.writeFileSync(outputPath, buffer)
     console.log(`[ImageGen] Saved → ${outputPath} (${buffer.length} bytes)`)
 
-    return { localPath: outputPath, buffer, jobId }
+    // Capture which scaffold template rendered this ad so the dashboard and
+    // boost-stats can attribute the result to a goal-fit. Custom design
+    // reprompts and full HTML mode return undefined — they don't belong to
+    // any one template.
+    const usedTemplateKey = isScaffoldTemplate ? revisionNotes : undefined
+
+    return { localPath: outputPath, buffer, jobId, agent: brief.agent, templateKey: usedTemplateKey }
   } finally {
     await browser.close()
   }

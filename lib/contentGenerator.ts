@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { loadSettings, loadKnowledgeBase } from './brandSettings'
 import { PostDraft, AssetBrief } from './draftStore'
+import { agentBadge } from './agentStore'
+import type { AgentProfile } from '@/types'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 3 })
 
@@ -487,9 +489,16 @@ export async function generateWeeklyBriefs(
   return parseJsonArray((msg.content[0] as { text: string }).text)
 }
 
-export function buildFacebookCaption(draft: Pick<PostDraft, 'caption' | 'engagementHook' | 'ctaText' | 'hashtags'>): string {
+export function buildFacebookCaption(
+  draft: Pick<PostDraft, 'caption' | 'engagementHook' | 'ctaText' | 'hashtags'>,
+  agent?: AgentProfile | null,
+): string {
   const hook = draft.engagementHook ? `\n\n${draft.engagementHook}` : ''
-  return `${draft.caption}${hook}\n\n${draft.ctaText}\n\n${draft.hashtags.map(h => `#${h}`).join(' ')}`
+  const body = `${draft.caption}${hook}\n\n${draft.ctaText}\n\n${draft.hashtags.map(h => `#${h}`).join(' ')}`
+  if (!agent) return body
+  const phoneLine = agent.phone ? `\n${agent.phone}` : ''
+  const header = `${agent.fullName}\n${agentBadge(agent)}${phoneLine}\n\n— — — — —\n\n`
+  return header + body
 }
 
 export function formatDraftForDiscord(draft: PostDraft, revisionCount: number): string {
