@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   BASE,
+  descLayout,
   FALLBACK_BG,
-  fitScale,
   FOOTER,
   GAP,
   GOLD,
@@ -60,9 +60,10 @@ export async function GET(request: Request) {
     const companyPhone = searchParams.get("company_phone") ?? cfg.phone;
     const qrCodeUrl = searchParams.get("qr");
 
-    const [bg, playfairBold, poppinsReg, poppinsSemi, poppinsItalic, poppinsSemiItalic] =
+    const [bg, logo, playfairBold, poppinsReg, poppinsSemi, poppinsItalic, poppinsSemiItalic] =
       await Promise.all([
         loadAsset(cfg.bg, FALLBACK_BG),
+        loadAsset(HEADER.logo),
         loadFont("PlayfairDisplay-Bold.woff"),
         loadFont("Poppins-Regular.ttf"),
         loadFont("Poppins-SemiBold.ttf"),
@@ -71,12 +72,16 @@ export async function GET(request: Request) {
       ]);
 
     const bgDataUrl = bg ? `data:image/png;base64,${bg.toString("base64")}` : null;
+    const logoDataUrl = logo
+      ? `data:image/png;base64,${logo.toString("base64")}`
+      : null;
     const qualLines = splitLines(qualification);
     const workLines = splitLines(workAbout);
 
-    // Largest scale (≤ 1) that fits between the fixed header and footer.
-    const scale = fitScale(position, qualLines, workLines);
-    const px = (n: number) => Math.round(n * scale);
+    // Descriptions get a height budget and their own font scale; title, salary,
+    // and footer stay at base size. dpx() scales only the description text.
+    const desc = descLayout(position, qualLines, workLines);
+    const dpx = (n: number) => Math.round(n * desc.scale);
 
     return new ImageResponse(
       (
@@ -111,30 +116,29 @@ export async function GET(request: Request) {
               backgroundColor: "rgba(255,255,255,0.20)",
             }}
           >
-            <div
-              style={{
-                fontFamily: "Playfair",
-                fontWeight: 700,
-                fontSize: HEADER.wordmark,
-                letterSpacing: HEADER.letter,
-                color: GOLD,
-              }}
-            >
-              RENAISSANCE
-            </div>
-            <div
-              style={{
-                marginTop: 3,
-                fontSize: HEADER.sub,
-                letterSpacing: HEADER.subLetter,
-                color: MUTED,
-              }}
-            >
-              PARK AND CHAPELS
-            </div>
+            {logoDataUrl ? (
+              <img
+                src={logoDataUrl}
+                alt="Renaissance Park and Chapels"
+                height={HEADER.logoHeight}
+                style={{ height: HEADER.logoHeight, objectFit: "contain" }}
+              />
+            ) : (
+              <div
+                style={{
+                  fontFamily: "Playfair",
+                  fontWeight: 700,
+                  fontSize: 38,
+                  letterSpacing: 8,
+                  color: GOLD,
+                }}
+              >
+                RENAISSANCE
+              </div>
+            )}
           </div>
 
-          {/* Body — fills the middle, scaled to fit */}
+          {/* Body — fills the middle; descriptions are clipped to their budget */}
           <div
             style={{
               display: "flex",
@@ -143,6 +147,7 @@ export async function GET(request: Request) {
               justifyContent: isCover ? "center" : "flex-start",
               alignItems: isCover ? "center" : "stretch",
               paddingTop: isCover ? 0 : GAP,
+              overflow: "hidden",
             }}
           >
             {isCover ? (
@@ -186,7 +191,7 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     fontFamily: "Playfair",
-                    fontSize: px(titleSize(position)),
+                    fontSize: titleSize(position),
                     fontWeight: 700,
                     color: INK,
                     lineHeight: 1.05,
@@ -197,8 +202,8 @@ export async function GET(request: Request) {
 
                 <div
                   style={{
-                    marginTop: px(BASE.gTitle),
-                    fontSize: px(BASE.sectionLabel),
+                    marginTop: BASE.gTitle,
+                    fontSize: BASE.sectionLabel,
                     fontWeight: 600,
                     fontStyle: "italic",
                     color: INK,
@@ -208,16 +213,18 @@ export async function GET(request: Request) {
                 </div>
                 <div
                   style={{
-                    marginTop: px(BASE.gList),
+                    marginTop: BASE.gList,
                     paddingLeft: 14,
                     display: "flex",
                     flexDirection: "column",
+                    maxHeight: desc.qualMaxH,
+                    overflow: "hidden",
                   }}
                 >
                   {qualLines.map((line, i) => (
                     <div
                       key={i}
-                      style={{ fontSize: px(BASE.qual), color: INK, lineHeight: 1.4 }}
+                      style={{ fontSize: dpx(BASE.qual), color: INK, lineHeight: 1.4 }}
                     >
                       {line}
                     </div>
@@ -226,8 +233,8 @@ export async function GET(request: Request) {
 
                 <div
                   style={{
-                    marginTop: px(BASE.gSection),
-                    fontSize: px(BASE.sectionLabel),
+                    marginTop: BASE.gSection,
+                    fontSize: BASE.sectionLabel,
                     fontWeight: 600,
                     fontStyle: "italic",
                     color: INK,
@@ -237,16 +244,18 @@ export async function GET(request: Request) {
                 </div>
                 <div
                   style={{
-                    marginTop: px(BASE.gList),
+                    marginTop: BASE.gList,
                     paddingLeft: 14,
                     display: "flex",
                     flexDirection: "column",
+                    maxHeight: desc.workMaxH,
+                    overflow: "hidden",
                   }}
                 >
                   {workLines.map((line, i) => (
                     <div
                       key={i}
-                      style={{ fontSize: px(BASE.work), color: INK, lineHeight: 1.4 }}
+                      style={{ fontSize: dpx(BASE.work), color: INK, lineHeight: 1.4 }}
                     >
                       {line}
                     </div>
@@ -255,8 +264,8 @@ export async function GET(request: Request) {
 
                 <div
                   style={{
-                    marginTop: px(BASE.gComp),
-                    fontSize: px(BASE.compLabel),
+                    marginTop: BASE.gComp,
+                    fontSize: BASE.compLabel,
                     fontWeight: 600,
                     fontStyle: "italic",
                     color: INK,
@@ -267,8 +276,8 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     fontFamily: "Playfair",
-                    marginTop: px(BASE.gPayLabel),
-                    fontSize: px(BASE.payLabel),
+                    marginTop: BASE.gPayLabel,
+                    fontSize: BASE.payLabel,
                     fontWeight: 700,
                     color: INK,
                   }}
@@ -278,9 +287,9 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     fontFamily: "Playfair",
-                    marginTop: px(BASE.gPayValue),
+                    marginTop: BASE.gPayValue,
                     paddingLeft: 24,
-                    fontSize: px(BASE.payValue),
+                    fontSize: BASE.payValue,
                     fontWeight: 700,
                     color: INK,
                   }}
@@ -290,8 +299,8 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     fontFamily: "Playfair",
-                    marginTop: px(BASE.gRegular),
-                    fontSize: px(BASE.payLabel),
+                    marginTop: BASE.gRegular,
+                    fontSize: BASE.payLabel,
                     fontWeight: 700,
                     color: INK,
                   }}
@@ -301,9 +310,9 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     fontFamily: "Playfair",
-                    marginTop: px(BASE.gPayValue),
+                    marginTop: BASE.gPayValue,
                     paddingLeft: 24,
-                    fontSize: px(BASE.payValue),
+                    fontSize: BASE.payValue,
                     fontWeight: 700,
                     color: INK,
                   }}

@@ -67,14 +67,12 @@ export const BASE = {
   gRegular: 12,
 };
 
-// Fixed (un-scaled) header + footer typography, identical on every poster.
+// Header is the logo image (public/logo-blk.png) at a fixed height.
 export const HEADER = {
-  wordmark: 38,
-  sub: 13,
-  letter: 8,
-  subLetter: 7,
+  logo: "logo-blk.png",
+  logoHeight: 72,
   padX: 24,
-  padY: 12,
+  padY: 14,
 };
 export const FOOTER = {
   heading: 24,
@@ -84,7 +82,7 @@ export const FOOTER = {
 
 // Fixed (un-scaled) header/footer heights + breathing room, used to derive how
 // much vertical space the body may occupy.
-const HEADER_H = 84;
+const HEADER_H = 104;
 const FOOTER_H = 220;
 export const GAP = 32;
 const AVAILABLE_BODY = HEIGHT - PAD_TOP - PAD_BOT - HEADER_H - FOOTER_H - GAP;
@@ -119,41 +117,74 @@ export function titleSize(position: string): number {
   return Math.max(floor, Math.min(BASE.title, oneLine));
 }
 
-// Estimate the rendered body height at a given scale.
-function estimateBody(
-  s: number,
-  position: string,
-  qualLines: string[],
-  workLines: string[],
-) {
-  const bodyW = WIDTH - PAD_X * 2;
-  const listW = bodyW - 14;
-  const tBase = titleSize(position);
+const LIST_W = WIDTH - PAD_X * 2 - 14;
+export const DESC_LINE = 1.4; // line-height for description lines
+const DESC_FLOOR = 0.5; // smallest description font scale before we just clip
+
+// Estimated rendered height of a description block (qual or work) at scale s.
+function descHeight(lines: string[], baseSize: number, s: number) {
   let h = 0;
-  h += wrapCount(position, tBase * s, bodyW, 0.5) * tBase * s;
-  h += BASE.gTitle * s;
-  h += BASE.sectionLabel * s * 1.3 + BASE.gList * s;
-  for (const l of qualLines)
-    h += wrapCount(l, BASE.qual * s, listW) * BASE.qual * s * 1.4;
-  h += BASE.gSection * s;
-  h += BASE.sectionLabel * s * 1.3 + BASE.gList * s;
-  for (const l of workLines)
-    h += wrapCount(l, BASE.work * s, listW) * BASE.work * s * 1.4;
-  h += BASE.gComp * s + BASE.compLabel * s * 1.3;
-  h += BASE.gPayLabel * s + BASE.payLabel * s * 1.2;
-  h += BASE.gPayValue * s + BASE.payValue * s * 1.1;
-  h += BASE.gRegular * s + BASE.payLabel * s * 1.2;
-  h += BASE.gPayValue * s + BASE.payValue * s * 1.1;
+  for (const l of lines)
+    h += wrapCount(l, baseSize * s, LIST_W) * baseSize * s * DESC_LINE;
   return h;
 }
 
-// Largest scale (≤ 1) at which the body fits the available space; floored so it
-// never becomes unreadable.
-export function fitScale(
+// Height consumed by everything in the body EXCEPT the two description blocks
+// (title, the two section labels, the compensation block, and their gaps). The
+// descriptions get whatever vertical space is left.
+function fixedBodyHeight(position: string) {
+  const tBase = titleSize(position);
+  const titleLines = wrapCount(position, tBase, WIDTH - PAD_X * 2, 0.62);
+  const titleH = titleLines * tBase * 1.05;
+  const labelH = BASE.sectionLabel * 1.3;
+  const compH =
+    BASE.gComp +
+    BASE.compLabel * 1.3 +
+    BASE.gPayLabel +
+    BASE.payLabel * 1.2 +
+    BASE.gPayValue +
+    BASE.payValue * 1.1 +
+    BASE.gRegular +
+    BASE.payLabel * 1.2 +
+    BASE.gPayValue +
+    BASE.payValue * 1.1;
+  return (
+    titleH +
+    BASE.gTitle +
+    labelH +
+    BASE.gList +
+    BASE.gSection +
+    labelH +
+    BASE.gList +
+    compH
+  );
+}
+
+export type DescLayout = {
+  scale: number; // font scale applied to BOTH description blocks
+  qualMaxH: number; // hard max-height (px) for the qualifications block
+  workMaxH: number; // hard max-height (px) for the work block
+};
+
+// Give the descriptions a height budget (the space left after the fixed parts)
+// and shrink only their font to fit — title, salary, and footer stay uniform.
+// The per-block max-heights are a hard clip so nothing can ever overlap, even
+// if the estimate is slightly off.
+export function descLayout(
   position: string,
   qualLines: string[],
   workLines: string[],
-): number {
-  const needed = estimateBody(1, position, qualLines, workLines);
-  return Math.max(0.5, Math.min(1, AVAILABLE_BODY / needed));
+): DescLayout {
+  const budget = Math.max(140, AVAILABLE_BODY - fixedBodyHeight(position));
+  const qH = descHeight(qualLines, BASE.qual, 1);
+  const wH = descHeight(workLines, BASE.work, 1);
+  const total = qH + wH || 1;
+  const scale = Math.max(DESC_FLOOR, Math.min(1, budget / total));
+  // Split the budget proportionally to each block's content; +2px guard so the
+  // clip never cuts a line that legitimately fits.
+  return {
+    scale,
+    qualMaxH: Math.round((budget * qH) / total) + 2,
+    workMaxH: Math.round((budget * wH) / total) + 2,
+  };
 }

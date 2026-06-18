@@ -1,6 +1,6 @@
 import {
   BASE,
-  fitScale,
+  descLayout,
   FOOTER,
   GAP,
   GOLD,
@@ -60,9 +60,9 @@ export function HiringPoster({
 
   const qualLines = splitLines(qualification);
   const workLines = splitLines(workAbout);
-  // Same auto-fit scale the image route uses, so the preview matches the post.
-  const scale = fitScale(positionName, qualLines, workLines);
-  const px = (n: number) => Math.round(n * scale);
+  // Same description budgeting the image route uses, so the preview matches.
+  const desc = descLayout(positionName, qualLines, workLines);
+  const dpx = (n: number) => Math.round(n * desc.scale);
 
   return (
     <article
@@ -96,27 +96,12 @@ export function HiringPoster({
           backgroundColor: "rgba(255,255,255,0.20)",
         }}
       >
-        <span
-          style={{
-            fontFamily: SERIF,
-            fontWeight: 700,
-            fontSize: HEADER.wordmark,
-            letterSpacing: HEADER.letter,
-            color: GOLD,
-          }}
-        >
-          RENAISSANCE
-        </span>
-        <span
-          style={{
-            marginTop: 3,
-            fontSize: HEADER.sub,
-            letterSpacing: HEADER.subLetter,
-            color: MUTED,
-          }}
-        >
-          PARK AND CHAPELS
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/${HEADER.logo}`}
+          alt="Renaissance Park and Chapels"
+          style={{ height: HEADER.logoHeight, objectFit: "contain" }}
+        />
       </header>
 
       {/* Body — fills the middle, scaled to fit */}
@@ -128,6 +113,7 @@ export function HiringPoster({
           justifyContent: isCover ? "center" : "flex-start",
           alignItems: isCover ? "center" : "stretch",
           paddingTop: isCover ? 0 : GAP,
+          overflow: "hidden",
         }}
       >
         {isCover ? (
@@ -168,7 +154,7 @@ export function HiringPoster({
             <span
               style={{
                 fontFamily: SERIF,
-                fontSize: px(titleSize(positionName)),
+                fontSize: titleSize(positionName),
                 fontWeight: 700,
                 color: INK,
                 lineHeight: 1.05,
@@ -179,8 +165,8 @@ export function HiringPoster({
 
             <span
               style={{
-                marginTop: px(BASE.gTitle),
-                fontSize: px(BASE.sectionLabel),
+                marginTop: BASE.gTitle,
+                fontSize: BASE.sectionLabel,
                 fontWeight: 600,
                 fontStyle: "italic",
                 color: INK,
@@ -190,16 +176,18 @@ export function HiringPoster({
             </span>
             <div
               style={{
-                marginTop: px(BASE.gList),
+                marginTop: BASE.gList,
                 paddingLeft: 14,
                 display: "flex",
                 flexDirection: "column",
+                maxHeight: desc.qualMaxH,
+                overflow: "hidden",
               }}
             >
               {qualLines.map((line, i) => (
                 <span
                   key={i}
-                  style={{ fontSize: px(BASE.qual), color: INK, lineHeight: 1.4 }}
+                  style={{ fontSize: dpx(BASE.qual), color: INK, lineHeight: 1.4 }}
                 >
                   {line}
                 </span>
@@ -208,8 +196,8 @@ export function HiringPoster({
 
             <span
               style={{
-                marginTop: px(BASE.gSection),
-                fontSize: px(BASE.sectionLabel),
+                marginTop: BASE.gSection,
+                fontSize: BASE.sectionLabel,
                 fontWeight: 600,
                 fontStyle: "italic",
                 color: INK,
@@ -219,16 +207,18 @@ export function HiringPoster({
             </span>
             <div
               style={{
-                marginTop: px(BASE.gList),
+                marginTop: BASE.gList,
                 paddingLeft: 14,
                 display: "flex",
                 flexDirection: "column",
+                maxHeight: desc.workMaxH,
+                overflow: "hidden",
               }}
             >
               {workLines.map((line, i) => (
                 <span
                   key={i}
-                  style={{ fontSize: px(BASE.work), color: INK, lineHeight: 1.4 }}
+                  style={{ fontSize: dpx(BASE.work), color: INK, lineHeight: 1.4 }}
                 >
                   {line}
                 </span>
@@ -237,8 +227,8 @@ export function HiringPoster({
 
             <span
               style={{
-                marginTop: px(BASE.gComp),
-                fontSize: px(BASE.compLabel),
+                marginTop: BASE.gComp,
+                fontSize: BASE.compLabel,
                 fontWeight: 600,
                 fontStyle: "italic",
                 color: INK,
@@ -249,8 +239,8 @@ export function HiringPoster({
             <span
               style={{
                 fontFamily: SERIF,
-                marginTop: px(BASE.gPayLabel),
-                fontSize: px(BASE.payLabel),
+                marginTop: BASE.gPayLabel,
+                fontSize: BASE.payLabel,
                 fontWeight: 700,
                 color: INK,
               }}
@@ -260,9 +250,9 @@ export function HiringPoster({
             <span
               style={{
                 fontFamily: SERIF,
-                marginTop: px(BASE.gPayValue),
+                marginTop: BASE.gPayValue,
                 paddingLeft: 24,
-                fontSize: px(BASE.payValue),
+                fontSize: BASE.payValue,
                 fontWeight: 700,
                 color: INK,
               }}
@@ -272,8 +262,8 @@ export function HiringPoster({
             <span
               style={{
                 fontFamily: SERIF,
-                marginTop: px(BASE.gRegular),
-                fontSize: px(BASE.payLabel),
+                marginTop: BASE.gRegular,
+                fontSize: BASE.payLabel,
                 fontWeight: 700,
                 color: INK,
               }}
@@ -283,9 +273,9 @@ export function HiringPoster({
             <span
               style={{
                 fontFamily: SERIF,
-                marginTop: px(BASE.gPayValue),
+                marginTop: BASE.gPayValue,
                 paddingLeft: 24,
-                fontSize: px(BASE.payValue),
+                fontSize: BASE.payValue,
                 fontWeight: 700,
                 color: INK,
               }}
