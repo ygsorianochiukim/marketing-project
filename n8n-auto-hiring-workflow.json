@@ -8,7 +8,7 @@
             {
               "id": "cfg-base-url",
               "name": "base_url",
-              "value": "https://YOUR-APP.vercel.app",
+              "value": "https://marketing-project-ashy.vercel.app",
               "type": "string"
             }
           ]
