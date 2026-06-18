@@ -14,6 +14,7 @@ import {
   splitLines,
   TEMPLATES,
   type TemplateKey,
+  titleSize,
   WIDTH,
 } from "../poster-layout";
 
@@ -167,10 +168,10 @@ export function HiringPoster({
             <span
               style={{
                 fontFamily: SERIF,
-                fontSize: px(BASE.title),
+                fontSize: px(titleSize(positionName)),
                 fontWeight: 700,
                 color: INK,
-                lineHeight: 1,
+                lineHeight: 1.05,
               }}
             >
               {positionName}

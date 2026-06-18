@@ -18,6 +18,7 @@ import {
   splitLines,
   TEMPLATES,
   type TemplateKey,
+  titleSize,
   WIDTH,
 } from "@/domain/auto-hiring/poster-layout";
 
@@ -185,10 +186,10 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     fontFamily: "Playfair",
-                    fontSize: px(BASE.title),
+                    fontSize: px(titleSize(position)),
                     fontWeight: 700,
                     color: INK,
-                    lineHeight: 1,
+                    lineHeight: 1.05,
                   }}
                 >
                   {position}

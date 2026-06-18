@@ -50,7 +50,7 @@ export const FALLBACK_BG = "bg-hiring.png";
 // Base (un-scaled) body typography. Header + footer stay fixed across posters
 // so the brand frame is identical everywhere; only the body scales to fit.
 export const BASE = {
-  title: 88,
+  title: 72, // cap; long titles shrink below this via titleSize()
   sectionLabel: 30,
   qual: 22,
   work: 26,
@@ -106,6 +106,17 @@ export function wrapCount(
   return Math.max(1, Math.ceil(widthPx / maxWidth));
 }
 
+// Adaptive position-title size: shrink to fit on a single line (down to a
+// floor) and never exceed BASE.title, so long titles stay compact instead of
+// wrapping into a huge multi-line block.
+export function titleSize(position: string): number {
+  const maxW = WIDTH - PAD_X * 2;
+  const floor = 42;
+  const perChar = 0.5 * Math.max(1, position.length);
+  const oneLine = Math.floor(maxW / perChar);
+  return Math.max(floor, Math.min(BASE.title, oneLine));
+}
+
 // Estimate the rendered body height at a given scale.
 function estimateBody(
   s: number,
@@ -115,8 +126,9 @@ function estimateBody(
 ) {
   const bodyW = WIDTH - PAD_X * 2;
   const listW = bodyW - 14;
+  const tBase = titleSize(position);
   let h = 0;
-  h += wrapCount(position, BASE.title * s, bodyW, 0.5) * BASE.title * s;
+  h += wrapCount(position, tBase * s, bodyW, 0.5) * tBase * s;
   h += BASE.gTitle * s;
   h += BASE.sectionLabel * s * 1.3 + BASE.gList * s;
   for (const l of qualLines)
