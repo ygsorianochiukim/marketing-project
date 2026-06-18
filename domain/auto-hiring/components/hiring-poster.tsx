@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 export type PosterVariant = "cover" | "admin" | "ck" | "field";
 
 export type HiringPosterProps = {
@@ -15,32 +13,40 @@ export type HiringPosterProps = {
   qrCodeUrl?: string;
 };
 
-const DEFAULTS = {
-  companyName: "Chiu Kim Enterprises Inc.",
-  companyAddress: "Bldg, Osmeña St., Zone I, City of Koronadal",
-  companyPhone: "63 963 630 8117",
-} as const;
-
-// Per-template config — kept in sync with app/auto_hiring/image/route.tsx so
-// the browser preview matches what n8n renders/posts. `bg` is layered on top
-// of the shared bg-hiring.png fallback: if the per-template file is absent the
-// browser simply falls through to the fallback (no broken image).
-const TEMPLATES: Record<
-  PosterVariant,
-  { bg: string; label: string; accent: string }
-> = {
-  admin: { bg: "/bg-hiring-admin.png", label: "ADMIN OFFICE", accent: "#8a6a3b" },
+// Per-template footer defaults. The four templates share one layout and differ
+// only by background + location footer. Kept in sync with
+// app/auto_hiring/image/route.tsx (the canonical generator n8n calls).
+const TEMPLATES: Record<PosterVariant, { bg: string; address: string; phone: string }> = {
+  admin: {
+    bg: "/bg-hiring-admin.png",
+    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
+    phone: "+63 963 630 8117",
+  },
   field: {
     bg: "/bg-hiring-field.png",
-    label: "FIELD OPERATIONS",
-    accent: "#3b6a4f",
+    address: "San Felipe, Tantangan, South Cotabato",
+    phone: "+63 922 588 3675",
   },
-  ck: { bg: "/bg-hiring-ck.png", label: "CK OFFICE", accent: "#6a3b3b" },
-  cover: { bg: "/bg-hiring-cover.png", label: "", accent: "#8a6a3b" },
+  ck: {
+    bg: "/bg-hiring-ck.png",
+    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
+    phone: "+63 963 630 8117",
+  },
+  cover: {
+    bg: "/bg-hiring-cover.png",
+    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
+    phone: "+63 963 630 8117",
+  },
 };
 
+// Layer the per-template background over the shared statue fallback; if the
+// per-template file is absent the browser falls through (no broken image).
 function bgLayers(variant: PosterVariant): string {
   return `url('${TEMPLATES[variant].bg}'), url('/bg-hiring.png')`;
+}
+
+function lines(value: string): string[] {
+  return value.split("\n").filter((l) => l.trim().length);
 }
 
 export function HiringPoster({
@@ -50,181 +56,157 @@ export function HiringPoster({
   workAbout = "Qualification",
   startingRate = "Starting",
   regularRate = "Regular",
-  companyName = DEFAULTS.companyName,
-  companyAddress = DEFAULTS.companyAddress,
-  companyPhone = DEFAULTS.companyPhone,
+  companyAddress,
+  companyPhone,
   qrCodeUrl,
 }: HiringPosterProps) {
-  if (variant === "cover") {
-    return <CoverPoster />;
-  }
+  const cfg = TEMPLATES[variant];
+  const address = companyAddress ?? cfg.address;
+  const phone = companyPhone ?? cfg.phone;
 
-  const { label, accent } = TEMPLATES[variant];
+  if (variant === "cover") {
+    return <CoverPoster address={address} phone={phone} qrCodeUrl={qrCodeUrl} />;
+  }
 
   return (
     <article
-      className="relative mx-auto flex w-[794px] max-w-full flex-col bg-[#f3e8cf] bg-cover bg-center bg-no-repeat px-14 py-10 font-serif text-[#2d2a26] shadow-xl"
-      style={{
-        aspectRatio: "210 / 297",
-        backgroundImage: bgLayers(variant),
-      }}
+      className="relative mx-auto flex w-[1080px] max-w-full flex-col bg-[#f4ece0] bg-cover bg-center bg-no-repeat px-16 pb-11 pt-14 text-[#2b2b2b] shadow-xl"
+      style={{ aspectRatio: "1080 / 1350", backgroundImage: bgLayers(variant) }}
     >
-      <PosterHeader label={label} accent={accent} />
+      <PosterHeader />
 
-      <h1 className="mt-10 text-[64px] font-bold leading-none tracking-tight text-[#3a3a3a]">
+      <h1 className="mt-7 font-serif text-[88px] font-bold leading-none text-[#2b2b2b]">
         {positionName}
       </h1>
 
-      <section className="mt-10 space-y-1">
-        <p className="text-[14px] italic text-[#5a5a5a]">
-          What we are looking for :
-        </p>
-        <p className="pl-4 text-[16px] text-[#2d2a26] whitespace-pre-line">
-          {qualification}
-        </p>
-      </section>
+      <p className="mt-6 text-[30px] font-semibold italic text-[#2b2b2b]">
+        What we are looking for :
+      </p>
+      <div className="mt-2 flex flex-col pl-3.5">
+        {lines(qualification).map((line, i) => (
+          <span key={i} className="text-[22px] leading-snug text-[#2b2b2b]">
+            {line}
+          </span>
+        ))}
+      </div>
 
-      <section className="mt-10 space-y-1">
-        <p className="text-[14px] italic text-[#5a5a5a]">
-          What is the work about :
-        </p>
-        <p className="pl-4 text-[16px] text-[#2d2a26] whitespace-pre-line">
-          {workAbout}
-        </p>
-      </section>
+      <p className="mt-[18px] text-[30px] font-semibold italic text-[#2b2b2b]">
+        What is the work about :
+      </p>
+      <div className="mt-2 flex flex-col pl-3.5">
+        {lines(workAbout).map((line, i) => (
+          <span key={i} className="text-[26px] leading-snug text-[#2b2b2b]">
+            {line}
+          </span>
+        ))}
+      </div>
 
-      <section className="mt-12">
-        <h2 className="text-[18px] font-semibold text-[#3a3a3a]">
-          Compensation and Benefits
-        </h2>
-        <dl className="mt-4 space-y-3">
-          <div>
-            <dt className="text-[14px] italic text-[#5a5a5a]">Starting :</dt>
-            <dd className="pl-4 text-[22px] font-bold text-[#2d2a26]">
-              {startingRate}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[14px] italic text-[#5a5a5a]">Regular :</dt>
-            <dd className="pl-4 text-[22px] font-bold text-[#2d2a26]">
-              {regularRate}
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-6 max-w-[80%] text-[10px] leading-relaxed text-[#6b6b6b]">
-          Rates already reflect a performance-and-integrity allocation that may
-          be given in full when work is carried out responsibly
-        </p>
-      </section>
+      <p className="mt-[30px] text-[32px] font-semibold italic text-[#2b2b2b]">
+        Compensation and Benefits
+      </p>
+      <p className="mt-3.5 font-serif text-[28px] font-bold text-[#2b2b2b]">
+        Starting :
+      </p>
+      <p className="mt-0.5 pl-6 font-serif text-[60px] font-bold text-[#2b2b2b]">
+        {startingRate}
+      </p>
+      <p className="mt-3 font-serif text-[28px] font-bold text-[#2b2b2b]">
+        Regular :
+      </p>
+      <p className="mt-0.5 pl-6 font-serif text-[60px] font-bold text-[#2b2b2b]">
+        {regularRate}
+      </p>
 
-      <hr className="my-6 border-[#c9b88f]" />
+      <p className="mt-[22px] max-w-[760px] text-[16px] leading-snug text-[#6b6b6b]">
+        Rates already reflect a performance-and-integrity allocation that may be
+        given in full when work is carried out responsibly
+      </p>
 
-      <PosterFooter
-        companyName={companyName}
-        companyAddress={companyAddress}
-        companyPhone={companyPhone}
-        qrCodeUrl={qrCodeUrl}
-      />
+      <PosterFooter address={address} phone={phone} qrCodeUrl={qrCodeUrl} />
     </article>
   );
 }
 
-function CoverPoster() {
-  const accent = TEMPLATES.cover.accent;
+function CoverPoster({
+  address,
+  phone,
+  qrCodeUrl,
+}: {
+  address: string;
+  phone: string;
+  qrCodeUrl?: string;
+}) {
   return (
     <article
-      className="relative mx-auto flex w-[794px] max-w-full flex-col items-center justify-center bg-[#f3e8cf] bg-cover bg-center bg-no-repeat px-14 py-16 font-serif text-[#2d2a26] shadow-xl"
-      style={{
-        aspectRatio: "210 / 297",
-        backgroundImage: bgLayers("cover"),
-      }}
+      className="relative mx-auto flex w-[1080px] max-w-full flex-col bg-[#f4ece0] bg-cover bg-center bg-no-repeat px-16 pb-11 pt-14 text-[#2b2b2b] shadow-xl"
+      style={{ aspectRatio: "1080 / 1350", backgroundImage: bgLayers("cover") }}
     >
-      <PosterHeader label="" accent={accent} />
+      <PosterHeader />
 
-      <div className="mt-24 flex flex-1 flex-col items-center justify-center text-center">
-        <p
-          className="text-[20px] tracking-[0.3em] uppercase"
-          style={{ color: accent }}
-        >
+      <div className="mt-[150px] flex flex-1 flex-col items-center text-center">
+        <p className="text-[26px] tracking-[0.3em] text-[#a8824a] uppercase">
           We&apos;re Hiring
         </p>
-        <h1 className="mt-6 text-[80px] font-bold leading-none tracking-tight text-[#3a3a3a]">
+        <h1 className="mt-7 font-serif text-[104px] font-bold leading-none text-[#2b2b2b]">
           Join Our Team
         </h1>
-        <p className="mt-8 max-w-md text-[16px] italic text-[#5a5a5a]">
+        <p className="mt-9 max-w-[640px] text-[22px] italic text-[#6b6b6b]">
           Build meaningful spaces for families and generations to come.
         </p>
       </div>
 
-      <PosterFooter
-        companyName={DEFAULTS.companyName}
-        companyAddress={DEFAULTS.companyAddress}
-        companyPhone={DEFAULTS.companyPhone}
-      />
+      <PosterFooter address={address} phone={phone} qrCodeUrl={qrCodeUrl} />
     </article>
   );
 }
 
-function PosterHeader({ label, accent }: { label: string; accent: string }) {
+function PosterHeader() {
   return (
-    <header className="flex flex-col items-center">
-      <Image
-        src="/logo-black.png"
-        alt="Renaissance Park and Chapels"
-        width={1500}
-        height={450}
-        priority
-        className="h-auto w-48 object-contain mix-blend-multiply"
-      />
-      {label ? (
-        <p
-          className="mt-2 text-[12px] tracking-[0.3em] uppercase"
-          style={{ color: accent }}
-        >
-          {label}
-        </p>
-      ) : null}
-      <span
-        className="mt-2 block h-[3px] w-24"
-        style={{ backgroundColor: accent }}
-      />
+    <header className="flex w-full flex-col items-center rounded-lg border border-[#a8824a]/35 bg-white/20 px-6 py-[18px]">
+      <span className="font-serif text-[46px] font-bold tracking-[0.18em] text-[#a8824a]">
+        RENAISSANCE
+      </span>
+      <span className="mt-1 text-[16px] tracking-[0.5em] text-[#6b6b6b]">
+        PARK AND CHAPELS
+      </span>
     </header>
   );
 }
 
-type PosterFooterProps = {
-  companyName: string;
-  companyAddress: string;
-  companyPhone: string;
-  qrCodeUrl?: string;
-};
-
 function PosterFooter({
-  companyName,
-  companyAddress,
-  companyPhone,
+  address,
+  phone,
   qrCodeUrl,
-}: PosterFooterProps) {
+}: {
+  address: string;
+  phone: string;
+  qrCodeUrl?: string;
+}) {
   return (
-    <footer className="flex items-end gap-4">
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center border border-[#2d2a26] bg-white">
-        {qrCodeUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={qrCodeUrl}
-            alt="QR code"
-            className="h-full w-full object-contain"
-          />
-        ) : (
-          <span className="text-[8px] text-[#2d2a26]">QR</span>
-        )}
-      </div>
-      <div className="flex flex-col gap-1 text-[10px] leading-snug text-[#2d2a26]">
-        <p className="font-semibold">Please send your documents at:</p>
-        <p>
-          {companyName} {companyAddress}
-        </p>
-        <p>{companyPhone}</p>
+    <footer className="mt-auto flex flex-col">
+      <hr className="mb-4 border-t-2 border-[#2b2b2b]" />
+      <p className="text-[24px] font-semibold text-[#2b2b2b]">
+        Please send your documents at:
+      </p>
+      <div className="mt-2.5 flex items-center">
+        <div className="mr-4 flex h-[104px] w-[104px] shrink-0 items-center justify-center bg-white">
+          {qrCodeUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={qrCodeUrl}
+              alt="QR code"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <span className="border border-[#2b2b2b] px-3 py-8 text-[12px] text-[#2b2b2b]">
+              QR
+            </span>
+          )}
+        </div>
+        <div className="flex flex-col text-[18px] leading-snug text-[#2b2b2b]">
+          <span>{address}</span>
+          <span>{phone}</span>
+        </div>
       </div>
     </footer>
   );

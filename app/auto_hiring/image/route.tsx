@@ -6,37 +6,51 @@ export const runtime = "nodejs";
 
 type TemplateKey = "admin" | "field" | "ck" | "cover";
 
-// Per-template config. `bg` is the preferred background filename in /public;
-// if it is missing we fall back to bg-hiring-small.png so the route always
-// renders. `label` is the small location/branding line under the logo, which
-// keeps the four variants visually distinct even before custom backgrounds
-// are supplied.
+// Per-template config. `bg` is the preferred background filename in /public; if
+// missing we fall back to the shared statue background. `address`/`phone` are
+// the location-specific footer defaults (overridable via query params). The
+// four templates share one layout and differ only by background + footer.
 const TEMPLATES: Record<
   TemplateKey,
-  { bg: string; label: string; accent: string }
+  { bg: string; address: string; phone: string }
 > = {
-  admin: { bg: "bg-hiring-admin.png", label: "ADMIN OFFICE", accent: "#8a6a3b" },
+  admin: {
+    bg: "bg-hiring-admin.png",
+    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
+    phone: "+63 963 630 8117",
+  },
   field: {
     bg: "bg-hiring-field.png",
-    label: "FIELD OPERATIONS",
-    accent: "#3b6a4f",
+    address: "San Felipe, Tantangan, South Cotabato",
+    phone: "+63 922 588 3675",
   },
-  ck: { bg: "bg-hiring-ck.png", label: "CK OFFICE", accent: "#6a3b3b" },
-  cover: { bg: "bg-hiring-cover.png", label: "", accent: "#8a6a3b" },
+  ck: {
+    bg: "bg-hiring-ck.png",
+    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
+    phone: "+63 963 630 8117",
+  },
+  cover: {
+    bg: "bg-hiring-cover.png",
+    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
+    phone: "+63 963 630 8117",
+  },
 };
 
-const FALLBACK_BG = "bg-hiring-small.png";
+const FALLBACK_BG = "bg-hiring.png";
+
+const GOLD = "#a8824a";
+const INK = "#2b2b2b";
+const MUTED = "#6b6b6b";
 
 function parseTemplate(value: string | null): TemplateKey {
   if (value === "field" || value === "ck" || value === "cover") return value;
   return "admin";
 }
 
-async function loadBgDataUrl(preferred: string): Promise<string | null> {
-  for (const name of [preferred, FALLBACK_BG]) {
+async function loadAsset(...candidates: string[]): Promise<Buffer | null> {
+  for (const name of candidates) {
     try {
-      const buf = await readFile(join(process.cwd(), "public", name));
-      return `data:image/png;base64,${buf.toString("base64")}`;
+      return await readFile(join(process.cwd(), "public", name));
     } catch {
       // try the next candidate
     }
@@ -44,26 +58,39 @@ async function loadBgDataUrl(preferred: string): Promise<string | null> {
   return null;
 }
 
+async function loadFont(file: string): Promise<Buffer> {
+  return readFile(join(process.cwd(), "public", "fonts", file));
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const template = parseTemplate(searchParams.get("template"));
     const isCover = template === "cover";
-    const { label, accent } = TEMPLATES[template];
+    const cfg = TEMPLATES[template];
 
     const position = searchParams.get("position") ?? "Position Name";
     const qualification = searchParams.get("qualification") ?? "Qualification";
     const workAbout = searchParams.get("work_about") ?? "Qualification";
     const startingRate = searchParams.get("starting") ?? "Starting";
     const regularRate = searchParams.get("regular") ?? "Regular";
-    const companyName =
-      searchParams.get("company_name") ?? "Chiu Kim Enterprises Inc.";
-    const companyAddress =
-      searchParams.get("company_address") ??
-      "Bldg, Osmena St., Zone I, City of Koronadal";
-    const companyPhone = searchParams.get("company_phone") ?? "63 963 630 8117";
+    const companyAddress = searchParams.get("company_address") ?? cfg.address;
+    const companyPhone = searchParams.get("company_phone") ?? cfg.phone;
     const qrCodeUrl = searchParams.get("qr");
-    const bgDataUrl = await loadBgDataUrl(TEMPLATES[template].bg);
+
+    const [bg, playfairBold, poppinsReg, poppinsSemi, poppinsItalic, poppinsSemiItalic] =
+      await Promise.all([
+        loadAsset(cfg.bg, FALLBACK_BG),
+        loadFont("PlayfairDisplay-Bold.woff"),
+        loadFont("Poppins-Regular.ttf"),
+        loadFont("Poppins-SemiBold.ttf"),
+        loadFont("Poppins-Italic.ttf"),
+        loadFont("Poppins-SemiBoldItalic.ttf"),
+      ]);
+
+    const bgDataUrl = bg ? `data:image/png;base64,${bg.toString("base64")}` : null;
+    const qualLines = qualification.split("\n").filter((l) => l.trim().length);
+    const workLines = workAbout.split("\n").filter((l) => l.trim().length);
 
     return new ImageResponse(
       (
@@ -73,29 +100,37 @@ export async function GET(request: Request) {
             height: "100%",
             display: "flex",
             flexDirection: "column",
-            padding: "40px 56px",
-            backgroundColor: "#f3e8cf",
+            padding: "56px 64px 44px",
+            backgroundColor: "#f4ece0",
             ...(bgDataUrl && {
               backgroundImage: `url(${bgDataUrl})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
             }),
-            color: "#2d2a26",
+            color: INK,
+            fontFamily: "Poppins",
           }}
         >
+          {/* Header wordmark */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              width: "100%",
+              padding: "18px 24px",
+              border: "1px solid rgba(168,130,74,0.35)",
+              borderRadius: 8,
+              backgroundColor: "rgba(255,255,255,0.20)",
             }}
           >
             <div
               style={{
-                fontSize: 32,
+                fontFamily: "Playfair",
                 fontWeight: 700,
-                letterSpacing: 8,
-                color: "#111",
+                fontSize: 46,
+                letterSpacing: 10,
+                color: GOLD,
               }}
             >
               RENAISSANCE
@@ -103,59 +138,34 @@ export async function GET(request: Request) {
             <div
               style={{
                 marginTop: 4,
-                fontSize: 14,
-                letterSpacing: 6,
-                color: "#111",
+                fontSize: 16,
+                letterSpacing: 8,
+                color: MUTED,
               }}
             >
               PARK AND CHAPELS
             </div>
-            {label ? (
-              <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 12,
-                  letterSpacing: 4,
-                  color: accent,
-                }}
-              >
-                {label}
-              </div>
-            ) : null}
-            <div
-              style={{
-                marginTop: 10,
-                width: 96,
-                height: 3,
-                backgroundColor: accent,
-              }}
-            />
           </div>
 
           {isCover ? (
             <div
               style={{
-                marginTop: 120,
+                marginTop: 150,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
               }}
             >
-              <div
-                style={{
-                  fontSize: 20,
-                  letterSpacing: 6,
-                  color: accent,
-                }}
-              >
+              <div style={{ fontSize: 26, letterSpacing: 8, color: GOLD }}>
                 WE&apos;RE HIRING
               </div>
               <div
                 style={{
-                  marginTop: 24,
-                  fontSize: 80,
+                  fontFamily: "Playfair",
+                  marginTop: 28,
+                  fontSize: 104,
                   fontWeight: 700,
-                  color: "#3a3a3a",
+                  color: INK,
                   lineHeight: 1,
                 }}
               >
@@ -163,11 +173,11 @@ export async function GET(request: Request) {
               </div>
               <div
                 style={{
-                  marginTop: 32,
-                  width: 520,
-                  fontSize: 16,
+                  marginTop: 36,
+                  width: 640,
+                  fontSize: 22,
                   fontStyle: "italic",
-                  color: "#5a5a5a",
+                  color: MUTED,
                   textAlign: "center",
                 }}
               >
@@ -175,145 +185,143 @@ export async function GET(request: Request) {
               </div>
             </div>
           ) : (
-            <div
-              style={{
-                marginTop: 32,
-                fontSize: 64,
-                fontWeight: 700,
-                color: "#3a3a3a",
-                lineHeight: 1,
-              }}
-            >
-              {position}
-            </div>
-          )}
-
-          {!isCover && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
+            <div style={{ display: "flex", flexDirection: "column" }}>
               <div
                 style={{
-                  marginTop: 32,
-                  display: "flex",
-                  flexDirection: "column",
+                  fontFamily: "Playfair",
+                  marginTop: 28,
+                  fontSize: 88,
+                  fontWeight: 700,
+                  color: INK,
+                  lineHeight: 1,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontStyle: "italic",
-                    color: "#5a5a5a",
-                  }}
-                >
-                  What we are looking for :
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    paddingLeft: 16,
-                    fontSize: 16,
-                    color: "#2d2a26",
-                  }}
-                >
-                  {qualification}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 32,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontStyle: "italic",
-                    color: "#5a5a5a",
-                  }}
-                >
-                  What is the work about :
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    paddingLeft: 16,
-                    fontSize: 16,
-                    color: "#2d2a26",
-                  }}
-                >
-                  {workAbout}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 40,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{ fontSize: 18, fontWeight: 600, color: "#3a3a3a" }}
-                >
-                  Compensation and Benefits
-                </div>
-                <div
-                  style={{
-                    marginTop: 12,
-                    fontSize: 14,
-                    fontStyle: "italic",
-                    color: "#5a5a5a",
-                  }}
-                >
-                  Starting :
-                </div>
-                <div
-                  style={{
-                    marginTop: 2,
-                    paddingLeft: 16,
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "#2d2a26",
-                  }}
-                >
-                  {startingRate}
-                </div>
-                <div
-                  style={{
-                    marginTop: 10,
-                    fontSize: 14,
-                    fontStyle: "italic",
-                    color: "#5a5a5a",
-                  }}
-                >
-                  Regular :
-                </div>
-                <div
-                  style={{
-                    marginTop: 2,
-                    paddingLeft: 16,
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "#2d2a26",
-                  }}
-                >
-                  {regularRate}
-                </div>
+                {position}
               </div>
 
               <div
                 style={{
                   marginTop: 24,
-                  width: 560,
-                  fontSize: 10,
-                  lineHeight: 1.5,
-                  color: "#6b6b6b",
+                  fontSize: 30,
+                  fontWeight: 600,
+                  fontStyle: "italic",
+                  color: INK,
+                }}
+              >
+                What we are looking for :
+              </div>
+              <div
+                style={{
+                  marginTop: 8,
+                  paddingLeft: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {qualLines.map((line, i) => (
+                  <div
+                    key={i}
+                    style={{ fontSize: 22, color: INK, lineHeight: 1.4 }}
+                  >
+                    {line}
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 18,
+                  fontSize: 30,
+                  fontWeight: 600,
+                  fontStyle: "italic",
+                  color: INK,
+                }}
+              >
+                What is the work about :
+              </div>
+              <div
+                style={{
+                  marginTop: 8,
+                  paddingLeft: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {workLines.map((line, i) => (
+                  <div
+                    key={i}
+                    style={{ fontSize: 26, color: INK, lineHeight: 1.4 }}
+                  >
+                    {line}
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 30,
+                  fontSize: 32,
+                  fontWeight: 600,
+                  fontStyle: "italic",
+                  color: INK,
+                }}
+              >
+                Compensation and Benefits
+              </div>
+              <div
+                style={{
+                  fontFamily: "Playfair",
+                  marginTop: 14,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: INK,
+                }}
+              >
+                Starting :
+              </div>
+              <div
+                style={{
+                  fontFamily: "Playfair",
+                  marginTop: 2,
+                  paddingLeft: 24,
+                  fontSize: 60,
+                  fontWeight: 700,
+                  color: INK,
+                }}
+              >
+                {startingRate}
+              </div>
+              <div
+                style={{
+                  fontFamily: "Playfair",
+                  marginTop: 12,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: INK,
+                }}
+              >
+                Regular :
+              </div>
+              <div
+                style={{
+                  fontFamily: "Playfair",
+                  marginTop: 2,
+                  paddingLeft: 24,
+                  fontSize: 60,
+                  fontWeight: 700,
+                  color: INK,
+                }}
+              >
+                {regularRate}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 22,
+                  width: 760,
+                  fontSize: 16,
+                  lineHeight: 1.4,
+                  color: MUTED,
                 }}
               >
                 Rates already reflect a performance-and-integrity allocation
@@ -322,60 +330,88 @@ export async function GET(request: Request) {
             </div>
           )}
 
+          {/* Footer */}
           <div
             style={{
               marginTop: "auto",
-              paddingTop: 16,
-              borderTop: "1px solid #c9b88f",
               display: "flex",
-              alignItems: "flex-end",
+              flexDirection: "column",
             }}
           >
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 80,
-                height: 80,
-                border: "1px solid #2d2a26",
-                backgroundColor: "#fff",
-                fontSize: 10,
-                color: "#2d2a26",
-                marginRight: 12,
+                borderTop: `2px solid ${INK}`,
+                marginBottom: 16,
               }}
-            >
-              {qrCodeUrl ? (
-                <img
-                  src={qrCodeUrl}
-                  alt=""
-                  width={78}
-                  height={78}
-                  style={{ objectFit: "contain" }}
-                />
-              ) : (
-                "QR"
-              )}
+            />
+            <div style={{ fontSize: 24, fontWeight: 600, color: INK }}>
+              Please send your documents at:
             </div>
             <div
               style={{
+                marginTop: 10,
                 display: "flex",
-                flexDirection: "column",
-                fontSize: 10,
-                color: "#2d2a26",
-                lineHeight: 1.3,
+                alignItems: "center",
               }}
             >
-              <div style={{ fontWeight: 700 }}>
-                Please send your documents at:
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 104,
+                  height: 104,
+                  backgroundColor: "#fff",
+                  marginRight: 16,
+                  ...(qrCodeUrl
+                    ? {}
+                    : { border: `1px solid ${INK}`, fontSize: 12, color: INK }),
+                }}
+              >
+                {qrCodeUrl ? (
+                  <img
+                    src={qrCodeUrl}
+                    alt=""
+                    width={104}
+                    height={104}
+                    style={{ objectFit: "contain" }}
+                  />
+                ) : (
+                  "QR"
+                )}
               </div>
-              <div style={{ marginTop: 2 }}>{`${companyName} ${companyAddress}`}</div>
-              <div style={{ marginTop: 2 }}>{companyPhone}</div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  fontSize: 18,
+                  color: INK,
+                  lineHeight: 1.4,
+                }}
+              >
+                <div>{companyAddress}</div>
+                <div>{companyPhone}</div>
+              </div>
             </div>
           </div>
         </div>
       ),
-      { width: 794, height: 1123 },
+      {
+        width: 1080,
+        height: 1350,
+        fonts: [
+          { name: "Playfair", data: playfairBold, weight: 700, style: "normal" },
+          { name: "Poppins", data: poppinsReg, weight: 400, style: "normal" },
+          { name: "Poppins", data: poppinsSemi, weight: 600, style: "normal" },
+          { name: "Poppins", data: poppinsItalic, weight: 400, style: "italic" },
+          {
+            name: "Poppins",
+            data: poppinsSemiItalic,
+            weight: 600,
+            style: "italic",
+          },
+        ],
+      },
     );
   } catch (err) {
     return new Response(

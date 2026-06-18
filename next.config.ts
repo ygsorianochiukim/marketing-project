@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // dynamic path, so on serverless (Vercel) the files would be missing and the
   // route would 500. Force them to be bundled with the function.
   outputFileTracingIncludes: {
-    "/auto_hiring/image": ["./public/bg-hiring*.png"],
+    "/auto_hiring/image": ["./public/bg-hiring*.png", "./public/fonts/*"],
   },
 
   // Native/heavy modules that should not be bundled by Next.js — they get
