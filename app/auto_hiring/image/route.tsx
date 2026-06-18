@@ -38,13 +38,83 @@ const TEMPLATES: Record<
 
 const FALLBACK_BG = "bg-hiring.png";
 
+const WIDTH = 1080;
+const HEIGHT = 1350;
+const PAD_X = 64;
+const PAD_TOP = 56;
+const PAD_BOT = 44;
+
 const GOLD = "#a8824a";
 const INK = "#2b2b2b";
 const MUTED = "#6b6b6b";
 
+// Base (un-scaled) body typography. Header + footer stay fixed across posters
+// so the brand frame is identical everywhere; only the body scales to fit.
+const BASE = {
+  title: 88,
+  sectionLabel: 30,
+  qual: 22,
+  work: 26,
+  compLabel: 32,
+  payLabel: 28,
+  payValue: 60,
+  disclaimer: 16,
+  // vertical gaps
+  gTitle: 28,
+  gSection: 18,
+  gList: 8,
+  gComp: 30,
+  gPayLabel: 14,
+  gPayValue: 2,
+  gRegular: 12,
+  gDisclaimer: 22,
+};
+
 function parseTemplate(value: string | null): TemplateKey {
   if (value === "field" || value === "ck" || value === "cover") return value;
   return "admin";
+}
+
+// Rough wrapped-line count. avgCharWidth ≈ factor * fontSize; conservative so
+// the estimate never under-counts (worst case we scale down a touch extra).
+function wrapCount(text: string, fontSize: number, maxWidth: number, factor = 0.52) {
+  if (!text) return 1;
+  const widthPx = text.length * fontSize * factor;
+  return Math.max(1, Math.ceil(widthPx / maxWidth));
+}
+
+// Estimate the rendered body height at a given scale, so we can pick the
+// largest scale (≤ 1) that fits the available space without crowding.
+function estimateBody(
+  s: number,
+  position: string,
+  qualLines: string[],
+  workLines: string[],
+) {
+  const bodyW = WIDTH - PAD_X * 2;
+  const listW = bodyW - 14;
+  let h = 0;
+  // title (Playfair, lineHeight ~1.0)
+  h += wrapCount(position, BASE.title * s, bodyW, 0.5) * BASE.title * s;
+  h += BASE.gTitle * s;
+  // "What we are looking for :"
+  h += BASE.sectionLabel * s * 1.3 + BASE.gList * s;
+  for (const l of qualLines)
+    h += wrapCount(l, BASE.qual * s, listW) * BASE.qual * s * 1.4;
+  h += BASE.gSection * s;
+  // "What is the work about :"
+  h += BASE.sectionLabel * s * 1.3 + BASE.gList * s;
+  for (const l of workLines)
+    h += wrapCount(l, BASE.work * s, listW) * BASE.work * s * 1.4;
+  // compensation
+  h += BASE.gComp * s + BASE.compLabel * s * 1.3;
+  h += BASE.gPayLabel * s + BASE.payLabel * s * 1.2;
+  h += BASE.gPayValue * s + BASE.payValue * s * 1.1;
+  h += BASE.gRegular * s + BASE.payLabel * s * 1.2;
+  h += BASE.gPayValue * s + BASE.payValue * s * 1.1;
+  // disclaimer
+  h += BASE.gDisclaimer * s + 2 * BASE.disclaimer * s * 1.4;
+  return h;
 }
 
 async function loadAsset(...candidates: string[]): Promise<Buffer | null> {
@@ -92,6 +162,17 @@ export async function GET(request: Request) {
     const qualLines = qualification.split("\n").filter((l) => l.trim().length);
     const workLines = workAbout.split("\n").filter((l) => l.trim().length);
 
+    // Space available for the body, between the fixed header and footer.
+    const HEADER_H = 104;
+    const FOOTER_H = 184;
+    const GAP = 32; // breathing room above/below the body block
+    const availableBody = HEIGHT - PAD_TOP - PAD_BOT - HEADER_H - FOOTER_H - GAP;
+
+    // Largest scale (≤ 1) that fits; floored so it never becomes unreadable.
+    const needed = estimateBody(1, position, qualLines, workLines);
+    const scale = Math.max(0.5, Math.min(1, availableBody / needed));
+    const px = (n: number) => Math.round(n * scale);
+
     return new ImageResponse(
       (
         <div
@@ -100,7 +181,7 @@ export async function GET(request: Request) {
             height: "100%",
             display: "flex",
             flexDirection: "column",
-            padding: "56px 64px 44px",
+            padding: `${PAD_TOP}px ${PAD_X}px ${PAD_BOT}px`,
             backgroundColor: "#f4ece0",
             ...(bgDataUrl && {
               backgroundImage: `url(${bgDataUrl})`,
@@ -111,10 +192,11 @@ export async function GET(request: Request) {
             fontFamily: "Poppins",
           }}
         >
-          {/* Header wordmark */}
+          {/* Header — fixed at top */}
           <div
             style={{
               display: "flex",
+              flexShrink: 0,
               flexDirection: "column",
               alignItems: "center",
               width: "100%",
@@ -136,224 +218,218 @@ export async function GET(request: Request) {
               RENAISSANCE
             </div>
             <div
-              style={{
-                marginTop: 4,
-                fontSize: 16,
-                letterSpacing: 8,
-                color: MUTED,
-              }}
+              style={{ marginTop: 4, fontSize: 16, letterSpacing: 8, color: MUTED }}
             >
               PARK AND CHAPELS
             </div>
           </div>
 
-          {isCover ? (
-            <div
-              style={{
-                marginTop: 150,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ fontSize: 26, letterSpacing: 8, color: GOLD }}>
-                WE&apos;RE HIRING
-              </div>
-              <div
-                style={{
-                  fontFamily: "Playfair",
-                  marginTop: 28,
-                  fontSize: 104,
-                  fontWeight: 700,
-                  color: INK,
-                  lineHeight: 1,
-                }}
-              >
-                Join Our Team
-              </div>
-              <div
-                style={{
-                  marginTop: 36,
-                  width: 640,
-                  fontSize: 22,
-                  fontStyle: "italic",
-                  color: MUTED,
-                  textAlign: "center",
-                }}
-              >
-                Build meaningful spaces for families and generations to come.
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div
-                style={{
-                  fontFamily: "Playfair",
-                  marginTop: 28,
-                  fontSize: 88,
-                  fontWeight: 700,
-                  color: INK,
-                  lineHeight: 1,
-                }}
-              >
-                {position}
-              </div>
-
-              <div
-                style={{
-                  marginTop: 24,
-                  fontSize: 30,
-                  fontWeight: 600,
-                  fontStyle: "italic",
-                  color: INK,
-                }}
-              >
-                What we are looking for :
-              </div>
-              <div
-                style={{
-                  marginTop: 8,
-                  paddingLeft: 14,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                {qualLines.map((line, i) => (
-                  <div
-                    key={i}
-                    style={{ fontSize: 22, color: INK, lineHeight: 1.4 }}
-                  >
-                    {line}
-                  </div>
-                ))}
-              </div>
-
-              <div
-                style={{
-                  marginTop: 18,
-                  fontSize: 30,
-                  fontWeight: 600,
-                  fontStyle: "italic",
-                  color: INK,
-                }}
-              >
-                What is the work about :
-              </div>
-              <div
-                style={{
-                  marginTop: 8,
-                  paddingLeft: 14,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                {workLines.map((line, i) => (
-                  <div
-                    key={i}
-                    style={{ fontSize: 26, color: INK, lineHeight: 1.4 }}
-                  >
-                    {line}
-                  </div>
-                ))}
-              </div>
-
-              <div
-                style={{
-                  marginTop: 30,
-                  fontSize: 32,
-                  fontWeight: 600,
-                  fontStyle: "italic",
-                  color: INK,
-                }}
-              >
-                Compensation and Benefits
-              </div>
-              <div
-                style={{
-                  fontFamily: "Playfair",
-                  marginTop: 14,
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: INK,
-                }}
-              >
-                Starting :
-              </div>
-              <div
-                style={{
-                  fontFamily: "Playfair",
-                  marginTop: 2,
-                  paddingLeft: 24,
-                  fontSize: 60,
-                  fontWeight: 700,
-                  color: INK,
-                }}
-              >
-                {startingRate}
-              </div>
-              <div
-                style={{
-                  fontFamily: "Playfair",
-                  marginTop: 12,
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: INK,
-                }}
-              >
-                Regular :
-              </div>
-              <div
-                style={{
-                  fontFamily: "Playfair",
-                  marginTop: 2,
-                  paddingLeft: 24,
-                  fontSize: 60,
-                  fontWeight: 700,
-                  color: INK,
-                }}
-              >
-                {regularRate}
-              </div>
-
-              <div
-                style={{
-                  marginTop: 22,
-                  width: 760,
-                  fontSize: 16,
-                  lineHeight: 1.4,
-                  color: MUTED,
-                }}
-              >
-                Rates already reflect a performance-and-integrity allocation
-                that may be given in full when work is carried out responsibly
-              </div>
-            </div>
-          )}
-
-          {/* Footer */}
+          {/* Body — fills the middle, scaled to fit */}
           <div
             style={{
-              marginTop: "auto",
+              display: "flex",
+              flex: 1,
+              flexDirection: "column",
+              justifyContent: isCover ? "center" : "flex-start",
+              alignItems: isCover ? "center" : "stretch",
+              paddingTop: isCover ? 0 : GAP,
+            }}
+          >
+            {isCover ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ fontSize: 26, letterSpacing: 8, color: GOLD }}>
+                  WE&apos;RE HIRING
+                </div>
+                <div
+                  style={{
+                    fontFamily: "Playfair",
+                    marginTop: 28,
+                    fontSize: 104,
+                    fontWeight: 700,
+                    color: INK,
+                    lineHeight: 1,
+                  }}
+                >
+                  Join Our Team
+                </div>
+                <div
+                  style={{
+                    marginTop: 36,
+                    width: 640,
+                    fontSize: 22,
+                    fontStyle: "italic",
+                    color: MUTED,
+                    textAlign: "center",
+                  }}
+                >
+                  Build meaningful spaces for families and generations to come.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <div
+                  style={{
+                    fontFamily: "Playfair",
+                    fontSize: px(BASE.title),
+                    fontWeight: 700,
+                    color: INK,
+                    lineHeight: 1,
+                  }}
+                >
+                  {position}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: px(BASE.gTitle),
+                    fontSize: px(BASE.sectionLabel),
+                    fontWeight: 600,
+                    fontStyle: "italic",
+                    color: INK,
+                  }}
+                >
+                  What we are looking for :
+                </div>
+                <div
+                  style={{
+                    marginTop: px(BASE.gList),
+                    paddingLeft: 14,
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {qualLines.map((line, i) => (
+                    <div
+                      key={i}
+                      style={{ fontSize: px(BASE.qual), color: INK, lineHeight: 1.4 }}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: px(BASE.gSection),
+                    fontSize: px(BASE.sectionLabel),
+                    fontWeight: 600,
+                    fontStyle: "italic",
+                    color: INK,
+                  }}
+                >
+                  What is the work about :
+                </div>
+                <div
+                  style={{
+                    marginTop: px(BASE.gList),
+                    paddingLeft: 14,
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {workLines.map((line, i) => (
+                    <div
+                      key={i}
+                      style={{ fontSize: px(BASE.work), color: INK, lineHeight: 1.4 }}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: px(BASE.gComp),
+                    fontSize: px(BASE.compLabel),
+                    fontWeight: 600,
+                    fontStyle: "italic",
+                    color: INK,
+                  }}
+                >
+                  Compensation and Benefits
+                </div>
+                <div
+                  style={{
+                    fontFamily: "Playfair",
+                    marginTop: px(BASE.gPayLabel),
+                    fontSize: px(BASE.payLabel),
+                    fontWeight: 700,
+                    color: INK,
+                  }}
+                >
+                  Starting :
+                </div>
+                <div
+                  style={{
+                    fontFamily: "Playfair",
+                    marginTop: px(BASE.gPayValue),
+                    paddingLeft: 24,
+                    fontSize: px(BASE.payValue),
+                    fontWeight: 700,
+                    color: INK,
+                  }}
+                >
+                  {startingRate}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "Playfair",
+                    marginTop: px(BASE.gRegular),
+                    fontSize: px(BASE.payLabel),
+                    fontWeight: 700,
+                    color: INK,
+                  }}
+                >
+                  Regular :
+                </div>
+                <div
+                  style={{
+                    fontFamily: "Playfair",
+                    marginTop: px(BASE.gPayValue),
+                    paddingLeft: 24,
+                    fontSize: px(BASE.payValue),
+                    fontWeight: 700,
+                    color: INK,
+                  }}
+                >
+                  {regularRate}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: px(BASE.gDisclaimer),
+                    width: 760,
+                    fontSize: px(BASE.disclaimer),
+                    lineHeight: 1.4,
+                    color: MUTED,
+                  }}
+                >
+                  Rates already reflect a performance-and-integrity allocation
+                  that may be given in full when work is carried out responsibly
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer — fixed at bottom */}
+          <div
+            style={{
+              flexShrink: 0,
               display: "flex",
               flexDirection: "column",
             }}
           >
-            <div
-              style={{
-                borderTop: `2px solid ${INK}`,
-                marginBottom: 16,
-              }}
-            />
+            <div style={{ borderTop: `2px solid ${INK}`, marginBottom: 16 }} />
             <div style={{ fontSize: 24, fontWeight: 600, color: INK }}>
               Please send your documents at:
             </div>
-            <div
-              style={{
-                marginTop: 10,
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center" }}>
               <div
                 style={{
                   display: "flex",
@@ -397,8 +473,8 @@ export async function GET(request: Request) {
         </div>
       ),
       {
-        width: 1080,
-        height: 1350,
+        width: WIDTH,
+        height: HEIGHT,
         fonts: [
           { name: "Playfair", data: playfairBold, weight: 700, style: "normal" },
           { name: "Poppins", data: poppinsReg, weight: 400, style: "normal" },
