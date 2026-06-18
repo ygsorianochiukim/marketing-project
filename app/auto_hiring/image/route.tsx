@@ -4,22 +4,53 @@ import { join } from "node:path";
 
 export const runtime = "nodejs";
 
-async function loadBgDataUrl(): Promise<string | null> {
-  try {
-    const buf = await readFile(
-      join(process.cwd(), "public", "bg-hiring-small.png"),
-    );
-    return `data:image/png;base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
+type TemplateKey = "admin" | "field" | "ck" | "cover";
+
+// Per-template config. `bg` is the preferred background filename in /public;
+// if it is missing we fall back to bg-hiring-small.png so the route always
+// renders. `label` is the small location/branding line under the logo, which
+// keeps the four variants visually distinct even before custom backgrounds
+// are supplied.
+const TEMPLATES: Record<
+  TemplateKey,
+  { bg: string; label: string; accent: string }
+> = {
+  admin: { bg: "bg-hiring-admin.png", label: "ADMIN OFFICE", accent: "#8a6a3b" },
+  field: {
+    bg: "bg-hiring-field.png",
+    label: "FIELD OPERATIONS",
+    accent: "#3b6a4f",
+  },
+  ck: { bg: "bg-hiring-ck.png", label: "CK OFFICE", accent: "#6a3b3b" },
+  cover: { bg: "bg-hiring-cover.png", label: "", accent: "#8a6a3b" },
+};
+
+const FALLBACK_BG = "bg-hiring-small.png";
+
+function parseTemplate(value: string | null): TemplateKey {
+  if (value === "field" || value === "ck" || value === "cover") return value;
+  return "admin";
+}
+
+async function loadBgDataUrl(preferred: string): Promise<string | null> {
+  for (const name of [preferred, FALLBACK_BG]) {
+    try {
+      const buf = await readFile(join(process.cwd(), "public", name));
+      return `data:image/png;base64,${buf.toString("base64")}`;
+    } catch {
+      // try the next candidate
+    }
   }
+  return null;
 }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const template = searchParams.get("template") ?? "admin";
+    const template = parseTemplate(searchParams.get("template"));
     const isCover = template === "cover";
+    const { label, accent } = TEMPLATES[template];
+
     const position = searchParams.get("position") ?? "Position Name";
     const qualification = searchParams.get("qualification") ?? "Qualification";
     const workAbout = searchParams.get("work_about") ?? "Qualification";
@@ -32,7 +63,7 @@ export async function GET(request: Request) {
       "Bldg, Osmena St., Zone I, City of Koronadal";
     const companyPhone = searchParams.get("company_phone") ?? "63 963 630 8117";
     const qrCodeUrl = searchParams.get("qr");
-    const bgDataUrl = await loadBgDataUrl();
+    const bgDataUrl = await loadBgDataUrl(TEMPLATES[template].bg);
 
     return new ImageResponse(
       (
@@ -79,6 +110,26 @@ export async function GET(request: Request) {
             >
               PARK AND CHAPELS
             </div>
+            {label ? (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  letterSpacing: 4,
+                  color: accent,
+                }}
+              >
+                {label}
+              </div>
+            ) : null}
+            <div
+              style={{
+                marginTop: 10,
+                width: 96,
+                height: 3,
+                backgroundColor: accent,
+              }}
+            />
           </div>
 
           {isCover ? (
@@ -94,7 +145,7 @@ export async function GET(request: Request) {
                 style={{
                   fontSize: 20,
                   letterSpacing: 6,
-                  color: "#8a6a3b",
+                  color: accent,
                 }}
               >
                 WE&apos;RE HIRING

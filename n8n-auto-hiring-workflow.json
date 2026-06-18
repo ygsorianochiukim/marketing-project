@@ -1,0 +1,862 @@
+{
+  "name": "Renaissance Auto Hiring Posting (repo image route)",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-base-url",
+              "name": "base_url",
+              "value": "https://YOUR-APP.vercel.app",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        736,
+        976
+      ],
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "name": "Settings"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "admin-img",
+              "name": "image_url",
+              "value": "={{ $('Settings').first().json.base_url }}/auto_hiring/image?template=admin&position={{ encodeURIComponent($json.hiring_name.replace(/\\w\\S*/g, t => t.charAt(0).toUpperCase() + t.substr(1).toLowerCase())) }}&qualification={{ encodeURIComponent($json.job_qualification) }}&work_about={{ encodeURIComponent($json.job_description) }}&starting={{ encodeURIComponent(((Number($json.salary_rate_trainee)||0)+(Number($json.ai_trainee)||0)+(Number($json.pit_trainee)||0)).toLocaleString('en-PH') + ' / month') }}&regular={{ encodeURIComponent(((Number($json.salary_rate_reg)||0)+(Number($json.ai_reg)||0)+(Number($json.pit_reg)||0)).toLocaleString('en-PH') + ' / month') }}",
+              "type": "string"
+            },
+            {
+              "id": "admin-tpl",
+              "name": "template",
+              "value": "admin",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2880,
+        960
+      ],
+      "id": "e689e00d-e1d0-4513-8e0d-3d50bf7e54ec",
+      "name": "Create an image from a template"
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v23.0",
+        "node": "842180178984507",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{ $json[\"message\"] }}"
+              },
+              {
+                "name": "attached_media",
+                "value": "={{ JSON.stringify($json[\"attached_media\"]) }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        4176,
+        1120
+      ],
+      "id": "da5dfb15-864b-440a-8689-426ccfe800be",
+      "name": "Facebook Graph API1",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "h6dqRfSSHOSqpBZp",
+          "name": "FB RP Inquiry Testing Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "hostUrl": "=graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v23.0",
+        "node": "842180178984507",
+        "edge": "photos",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "url",
+                "value": "={{ $json.image_url }}"
+              },
+              {
+                "name": "published",
+                "value": "=false"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        3536,
+        1120
+      ],
+      "id": "1121c9c2-d9a8-4c09-bd07-e6789ee221c0",
+      "name": "Facebook Graph API2",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "h6dqRfSSHOSqpBZp",
+          "name": "FB RP Inquiry Testing Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const media = $input.all().map(item => ({\n  media_fbid: item.json.id\n}));\n\nreturn [{\n  json: {\n    message: `We’re Expanding Our Team\n\nWe are looking for dedicated individuals who wish to grow with us. As our team continues to expand, we hope you can be part of this journey, helping us build meaningful spaces for families and generations to come.\n\nIf you’re looking for an opportunity to work with purpose and be part of a growing team, we’d be happy to welcome you.\n\n\n#KoronadalHiring #JobHiring #RenaissanceParkandChapels`,\n    attached_media: media\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3968,
+        1120
+      ],
+      "id": "ff4b562e-e6fd-42d3-b0d9-42b32a0259d6",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                5
+              ],
+              "triggerAtHour": 8,
+              "triggerAtMinute": 51
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        976
+      ],
+      "id": "79a15272-26ba-4f07-aa31-5bbcf23c5fd9",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ee6db742-3435-4b6b-b04d-fa06386626b1",
+              "leftValue": "={{ $json.is_active }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "ae6dc1a5-1449-4b47-9677-6d6ff5ada13f",
+              "leftValue": "={{ $json.bu }}",
+              "rightValue": "RP",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "90f171c9-fa9e-4e8c-ad67-143f618242d8",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "Open",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        976
+      ],
+      "id": "44b2f6b0-a60f-4e7c-8e90-6800b3af98fb",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "numberInputs": 5
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3168,
+        1088
+      ],
+      "id": "fc4062c7-d75e-4bb9-982a-beea96a1551a",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "position_id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2384,
+        1248
+      ],
+      "id": "8672f62a-65de-47a6-81e0-4636d81ea16c",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1aDQ4qZn_0ynfVXbuRmU9wCrwjgcXncz_Fbik72NvaDM/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 755485427,
+          "mode": "list",
+          "cachedResultName": "position",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1aDQ4qZn_0ynfVXbuRmU9wCrwjgcXncz_Fbik72NvaDM/edit#gid=755485427"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "position_id",
+              "lookupValue": "={{ $json.position_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1520,
+        960
+      ],
+      "id": "a71565fe-7ebe-4098-840b-86a1deae5227",
+      "name": "Salary Structure",
+      "credentials": {
+        "googleApi": {
+          "id": "r0XCETL9KDFrxBYg",
+          "name": "Google Cloud"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1qBiLLZq1qr8RRZhpgn-GZqpwlDQwuXnYmyVz5N2Q9GI/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 466679899,
+          "mode": "list",
+          "cachedResultName": "Sheet6",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1qBiLLZq1qr8RRZhpgn-GZqpwlDQwuXnYmyVz5N2Q9GI/edit#gid=466679899"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "bu",
+              "lookupValue": "RP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1008,
+        976
+      ],
+      "id": "2345a3da-0c95-4226-ab94-5eec74d429ee",
+      "name": "Position Hiring",
+      "credentials": {
+        "googleApi": {
+          "id": "r0XCETL9KDFrxBYg",
+          "name": "Google Cloud"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1qBiLLZq1qr8RRZhpgn-GZqpwlDQwuXnYmyVz5N2Q9GI/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 586951388,
+          "mode": "list",
+          "cachedResultName": "job_details",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1qBiLLZq1qr8RRZhpgn-GZqpwlDQwuXnYmyVz5N2Q9GI/edit#gid=586951388"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "position_id",
+              "lookupValue": "={{ $json.position_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1536,
+        1264
+      ],
+      "id": "2ae6916c-32ae-42b7-aa88-9c9fa1a123b6",
+      "name": "Qualification",
+      "credentials": {
+        "googleApi": {
+          "id": "r0XCETL9KDFrxBYg",
+          "name": "Google Cloud"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "position_id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2384,
+        960
+      ],
+      "id": "46443555-0395-4c54-9ac1-9f7370ff3871",
+      "name": "Merge4"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fmonth-img",
+              "name": "image_url",
+              "value": "={{ $('Settings').first().json.base_url }}/auto_hiring/image?template=field&position={{ encodeURIComponent($json.hiring_name.replace(/\\w\\S*/g, t => t.charAt(0).toUpperCase() + t.substr(1).toLowerCase())) }}&qualification={{ encodeURIComponent($json.job_qualification) }}&work_about={{ encodeURIComponent($json.job_description) }}&starting={{ encodeURIComponent(((Number($json.salary_rate_trainee)||0)+(Number($json.ai_trainee)||0)+(Number($json.pit_trainee)||0)).toLocaleString('en-PH') + ' / month') }}&regular={{ encodeURIComponent(((Number($json.salary_rate_reg)||0)+(Number($json.ai_reg)||0)+(Number($json.pit_reg)||0)).toLocaleString('en-PH') + ' / month') }}",
+              "type": "string"
+            },
+            {
+              "id": "fmonth-tpl",
+              "name": "template",
+              "value": "field",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2880,
+        1168
+      ],
+      "id": "d97b38d5-df2e-4378-9c3a-cab6de370bf1",
+      "name": "Fields Per Month"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fday-img",
+              "name": "image_url",
+              "value": "={{ $('Settings').first().json.base_url }}/auto_hiring/image?template=field&position={{ encodeURIComponent($json.hiring_name.replace(/\\w\\S*/g, t => t.charAt(0).toUpperCase() + t.substr(1).toLowerCase())) }}&qualification={{ encodeURIComponent($json.job_qualification) }}&work_about={{ encodeURIComponent($json.job_description) }}&starting={{ encodeURIComponent((((Number($json.salary_rate_trainee)||0)+(Number($json.ai_trainee)||0)+(Number($json.pit_trainee)||0))*12/313).toFixed(2) + ' / day') }}&regular={{ encodeURIComponent((((Number($json.salary_rate_reg)||0)+(Number($json.ai_reg)||0)+(Number($json.pit_reg)||0))*12/313).toFixed(2) + ' / day') }}",
+              "type": "string"
+            },
+            {
+              "id": "fday-tpl",
+              "name": "template",
+              "value": "field",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2880,
+        1360
+      ],
+      "id": "a2e508ce-9c28-43c4-a0a4-5dd375baeb3b",
+      "name": "Fields Per Day"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4305dda4-e1a6-4308-a0f0-aab268fef52c",
+              "leftValue": "={{ $('Salary Structure').item.json.date_created }}",
+              "rightValue": "FIELD",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2608,
+        1248
+      ],
+      "id": "dfccb73c-6d89-4b4d-a2b1-860d4dc7df94",
+      "name": "Check for daily/mo"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8bbd09f2-4c01-4435-b544-26ac7602bbb8",
+              "leftValue": "={{ $json.is_active }}",
+              "rightValue": "ADMIN",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "6cfab36b-75b1-4f45-9e9b-98ac80558691",
+              "leftValue": "={{ $json.date_created }}",
+              "rightValue": "FIELD",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1728,
+        960
+      ],
+      "id": "86a96501-6fc6-4a15-b4d0-bc8f4c8ecf53",
+      "name": "Check Location"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cover-img",
+              "name": "image_url",
+              "value": "={{ $('Settings').first().json.base_url }}/auto_hiring/image?template=cover",
+              "type": "string"
+            },
+            {
+              "id": "cover-tpl",
+              "name": "template",
+              "value": "cover",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1728,
+        480
+      ],
+      "id": "86b40dcb-0704-4d75-bfb7-45aae2522782",
+      "name": "Create Cover Photo (Placid)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "315cca7d-e1bc-49c8-9d12-664b8cba44d0",
+              "leftValue": "={{ $('Check Location').item.json.date_created }}",
+              "rightValue": "CK",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2624,
+        848
+      ],
+      "id": "980b1573-30e1-420a-aa2d-fa53174e0029",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ck-img",
+              "name": "image_url",
+              "value": "={{ $('Settings').first().json.base_url }}/auto_hiring/image?template=ck&position={{ encodeURIComponent($json.hiring_name.replace(/\\w\\S*/g, t => t.charAt(0).toUpperCase() + t.substr(1).toLowerCase())) }}&qualification={{ encodeURIComponent($json.job_qualification) }}&work_about={{ encodeURIComponent($json.job_description) }}&starting={{ encodeURIComponent(((Number($json.salary_rate_trainee)||0)+(Number($json.ai_trainee)||0)+(Number($json.pit_trainee)||0)).toLocaleString('en-PH') + ' / month') }}&regular={{ encodeURIComponent(((Number($json.salary_rate_reg)||0)+(Number($json.ai_reg)||0)+(Number($json.pit_reg)||0)).toLocaleString('en-PH') + ' / month') }}",
+              "type": "string"
+            },
+            {
+              "id": "ck-tpl",
+              "name": "template",
+              "value": "ck",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2864,
+        768
+      ],
+      "id": "0d64e824-206c-423c-b09e-ad7a7f59f062",
+      "name": "CK Hiring"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Position Hiring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an image from a template": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Facebook Graph API2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Facebook Graph API1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Salary Structure",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Facebook Graph API2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Check for daily/mo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salary Structure": {
+      "main": [
+        [
+          {
+            "node": "Check Location",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Position Hiring": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualification": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge4": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fields Per Month": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Fields Per Day": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Check for daily/mo": {
+      "main": [
+        [
+          {
+            "node": "Fields Per Month",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fields Per Day",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Location": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Cover Photo (Placid)": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "CK Hiring",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create an image from a template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CK Hiring": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

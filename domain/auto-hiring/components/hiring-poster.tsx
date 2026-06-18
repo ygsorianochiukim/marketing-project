@@ -21,6 +21,28 @@ const DEFAULTS = {
   companyPhone: "63 963 630 8117",
 } as const;
 
+// Per-template config — kept in sync with app/auto_hiring/image/route.tsx so
+// the browser preview matches what n8n renders/posts. `bg` is layered on top
+// of the shared bg-hiring.png fallback: if the per-template file is absent the
+// browser simply falls through to the fallback (no broken image).
+const TEMPLATES: Record<
+  PosterVariant,
+  { bg: string; label: string; accent: string }
+> = {
+  admin: { bg: "/bg-hiring-admin.png", label: "ADMIN OFFICE", accent: "#8a6a3b" },
+  field: {
+    bg: "/bg-hiring-field.png",
+    label: "FIELD OPERATIONS",
+    accent: "#3b6a4f",
+  },
+  ck: { bg: "/bg-hiring-ck.png", label: "CK OFFICE", accent: "#6a3b3b" },
+  cover: { bg: "/bg-hiring-cover.png", label: "", accent: "#8a6a3b" },
+};
+
+function bgLayers(variant: PosterVariant): string {
+  return `url('${TEMPLATES[variant].bg}'), url('/bg-hiring.png')`;
+}
+
 export function HiringPoster({
   variant = "admin",
   positionName = "Position Name",
@@ -37,15 +59,17 @@ export function HiringPoster({
     return <CoverPoster />;
   }
 
+  const { label, accent } = TEMPLATES[variant];
+
   return (
     <article
       className="relative mx-auto flex w-[794px] max-w-full flex-col bg-[#f3e8cf] bg-cover bg-center bg-no-repeat px-14 py-10 font-serif text-[#2d2a26] shadow-xl"
       style={{
         aspectRatio: "210 / 297",
-        backgroundImage: "url('/bg-hiring.png')",
+        backgroundImage: bgLayers(variant),
       }}
     >
-      <PosterHeader />
+      <PosterHeader label={label} accent={accent} />
 
       <h1 className="mt-10 text-[64px] font-bold leading-none tracking-tight text-[#3a3a3a]">
         {positionName}
@@ -106,18 +130,22 @@ export function HiringPoster({
 }
 
 function CoverPoster() {
+  const accent = TEMPLATES.cover.accent;
   return (
     <article
       className="relative mx-auto flex w-[794px] max-w-full flex-col items-center justify-center bg-[#f3e8cf] bg-cover bg-center bg-no-repeat px-14 py-16 font-serif text-[#2d2a26] shadow-xl"
       style={{
         aspectRatio: "210 / 297",
-        backgroundImage: "url('/bg-hiring.png')",
+        backgroundImage: bgLayers("cover"),
       }}
     >
-      <PosterHeader />
+      <PosterHeader label="" accent={accent} />
 
       <div className="mt-24 flex flex-1 flex-col items-center justify-center text-center">
-        <p className="text-[20px] tracking-[0.3em] text-[#8a6a3b] uppercase">
+        <p
+          className="text-[20px] tracking-[0.3em] uppercase"
+          style={{ color: accent }}
+        >
           We&apos;re Hiring
         </p>
         <h1 className="mt-6 text-[80px] font-bold leading-none tracking-tight text-[#3a3a3a]">
@@ -137,9 +165,9 @@ function CoverPoster() {
   );
 }
 
-function PosterHeader() {
+function PosterHeader({ label, accent }: { label: string; accent: string }) {
   return (
-    <header className="flex justify-center">
+    <header className="flex flex-col items-center">
       <Image
         src="/logo-black.png"
         alt="Renaissance Park and Chapels"
@@ -147,6 +175,18 @@ function PosterHeader() {
         height={450}
         priority
         className="h-auto w-48 object-contain mix-blend-multiply"
+      />
+      {label ? (
+        <p
+          className="mt-2 text-[12px] tracking-[0.3em] uppercase"
+          style={{ color: accent }}
+        >
+          {label}
+        </p>
+      ) : null}
+      <span
+        className="mt-2 block h-[3px] w-24"
+        style={{ backgroundColor: accent }}
       />
     </header>
   );
