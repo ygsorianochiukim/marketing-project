@@ -112,7 +112,9 @@ export function wrapCount(
 export function titleSize(position: string): number {
   const maxW = WIDTH - PAD_X * 2;
   const floor = 42;
-  const perChar = 0.5 * Math.max(1, position.length);
+  // Playfair Display Bold is wide; use a generous per-char factor so the size
+  // we pick actually fits one line instead of just barely overflowing.
+  const perChar = 0.62 * Math.max(1, position.length);
   const oneLine = Math.floor(maxW / perChar);
   return Math.max(floor, Math.min(BASE.title, oneLine));
 }
