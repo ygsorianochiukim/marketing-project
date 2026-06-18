@@ -1,4 +1,23 @@
-export type PosterVariant = "cover" | "admin" | "ck" | "field";
+import {
+  BASE,
+  fitScale,
+  FOOTER,
+  GAP,
+  GOLD,
+  HEADER,
+  HEIGHT,
+  INK,
+  MUTED,
+  PAD_BOT,
+  PAD_TOP,
+  PAD_X,
+  splitLines,
+  TEMPLATES,
+  type TemplateKey,
+  WIDTH,
+} from "../poster-layout";
+
+export type PosterVariant = TemplateKey;
 
 export type HiringPosterProps = {
   variant?: PosterVariant;
@@ -13,40 +32,13 @@ export type HiringPosterProps = {
   qrCodeUrl?: string;
 };
 
-// Per-template footer defaults. The four templates share one layout and differ
-// only by background + location footer. Kept in sync with
-// app/auto_hiring/image/route.tsx (the canonical generator n8n calls).
-const TEMPLATES: Record<PosterVariant, { bg: string; address: string; phone: string }> = {
-  admin: {
-    bg: "/bg-hiring-admin.png",
-    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
-    phone: "+63 963 630 8117",
-  },
-  field: {
-    bg: "/bg-hiring-field.png",
-    address: "San Felipe, Tantangan, South Cotabato",
-    phone: "+63 922 588 3675",
-  },
-  ck: {
-    bg: "/bg-hiring-ck.png",
-    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
-    phone: "+63 963 630 8117",
-  },
-  cover: {
-    bg: "/bg-hiring-cover.png",
-    address: "Bldg, Osmeña St., Zone I, City of Koronadal",
-    phone: "+63 963 630 8117",
-  },
-};
+const SERIF = "'Playfair Display', Georgia, serif";
+const SANS = "'Poppins', ui-sans-serif, system-ui, sans-serif";
 
 // Layer the per-template background over the shared statue fallback; if the
 // per-template file is absent the browser falls through (no broken image).
 function bgLayers(variant: PosterVariant): string {
-  return `url('${TEMPLATES[variant].bg}'), url('/bg-hiring.png')`;
-}
-
-function lines(value: string): string[] {
-  return value.split("\n").filter((l) => l.trim().length);
+  return `url('/${TEMPLATES[variant].bg}'), url('/bg-hiring.png')`;
 }
 
 export function HiringPoster({
@@ -63,151 +55,304 @@ export function HiringPoster({
   const cfg = TEMPLATES[variant];
   const address = companyAddress ?? cfg.address;
   const phone = companyPhone ?? cfg.phone;
+  const isCover = variant === "cover";
 
-  if (variant === "cover") {
-    return <CoverPoster address={address} phone={phone} qrCodeUrl={qrCodeUrl} />;
-  }
+  const qualLines = splitLines(qualification);
+  const workLines = splitLines(workAbout);
+  // Same auto-fit scale the image route uses, so the preview matches the post.
+  const scale = fitScale(positionName, qualLines, workLines);
+  const px = (n: number) => Math.round(n * scale);
 
   return (
     <article
-      className="relative mx-auto flex w-[1080px] max-w-full flex-col bg-[#f4ece0] bg-cover bg-center bg-no-repeat px-16 pb-11 pt-14 text-[#2b2b2b] shadow-xl"
-      style={{ aspectRatio: "1080 / 1350", backgroundImage: bgLayers(variant) }}
+      style={{
+        width: WIDTH,
+        maxWidth: "100%",
+        aspectRatio: `${WIDTH} / ${HEIGHT}`,
+        display: "flex",
+        flexDirection: "column",
+        padding: `${PAD_TOP}px ${PAD_X}px ${PAD_BOT}px`,
+        backgroundColor: "#f4ece0",
+        backgroundImage: bgLayers(variant),
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        color: INK,
+        fontFamily: SANS,
+        boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+      }}
     >
-      <PosterHeader />
+      {/* Header — fixed at top */}
+      <header
+        style={{
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          width: "100%",
+          padding: `${HEADER.padY}px ${HEADER.padX}px`,
+          border: "1px solid rgba(168,130,74,0.35)",
+          borderRadius: 8,
+          backgroundColor: "rgba(255,255,255,0.20)",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: SERIF,
+            fontWeight: 700,
+            fontSize: HEADER.wordmark,
+            letterSpacing: HEADER.letter,
+            color: GOLD,
+          }}
+        >
+          RENAISSANCE
+        </span>
+        <span
+          style={{
+            marginTop: 3,
+            fontSize: HEADER.sub,
+            letterSpacing: HEADER.subLetter,
+            color: MUTED,
+          }}
+        >
+          PARK AND CHAPELS
+        </span>
+      </header>
 
-      <h1 className="mt-7 font-serif text-[88px] font-bold leading-none text-[#2b2b2b]">
-        {positionName}
-      </h1>
-
-      <p className="mt-6 text-[30px] font-semibold italic text-[#2b2b2b]">
-        What we are looking for :
-      </p>
-      <div className="mt-2 flex flex-col pl-3.5">
-        {lines(qualification).map((line, i) => (
-          <span key={i} className="text-[22px] leading-snug text-[#2b2b2b]">
-            {line}
-          </span>
-        ))}
-      </div>
-
-      <p className="mt-[18px] text-[30px] font-semibold italic text-[#2b2b2b]">
-        What is the work about :
-      </p>
-      <div className="mt-2 flex flex-col pl-3.5">
-        {lines(workAbout).map((line, i) => (
-          <span key={i} className="text-[26px] leading-snug text-[#2b2b2b]">
-            {line}
-          </span>
-        ))}
-      </div>
-
-      <p className="mt-[30px] text-[32px] font-semibold italic text-[#2b2b2b]">
-        Compensation and Benefits
-      </p>
-      <p className="mt-3.5 font-serif text-[28px] font-bold text-[#2b2b2b]">
-        Starting :
-      </p>
-      <p className="mt-0.5 pl-6 font-serif text-[60px] font-bold text-[#2b2b2b]">
-        {startingRate}
-      </p>
-      <p className="mt-3 font-serif text-[28px] font-bold text-[#2b2b2b]">
-        Regular :
-      </p>
-      <p className="mt-0.5 pl-6 font-serif text-[60px] font-bold text-[#2b2b2b]">
-        {regularRate}
-      </p>
-
-      <p className="mt-[22px] max-w-[760px] text-[16px] leading-snug text-[#6b6b6b]">
-        Rates already reflect a performance-and-integrity allocation that may be
-        given in full when work is carried out responsibly
-      </p>
-
-      <PosterFooter address={address} phone={phone} qrCodeUrl={qrCodeUrl} />
-    </article>
-  );
-}
-
-function CoverPoster({
-  address,
-  phone,
-  qrCodeUrl,
-}: {
-  address: string;
-  phone: string;
-  qrCodeUrl?: string;
-}) {
-  return (
-    <article
-      className="relative mx-auto flex w-[1080px] max-w-full flex-col bg-[#f4ece0] bg-cover bg-center bg-no-repeat px-16 pb-11 pt-14 text-[#2b2b2b] shadow-xl"
-      style={{ aspectRatio: "1080 / 1350", backgroundImage: bgLayers("cover") }}
-    >
-      <PosterHeader />
-
-      <div className="mt-[150px] flex flex-1 flex-col items-center text-center">
-        <p className="text-[26px] tracking-[0.3em] text-[#a8824a] uppercase">
-          We&apos;re Hiring
-        </p>
-        <h1 className="mt-7 font-serif text-[104px] font-bold leading-none text-[#2b2b2b]">
-          Join Our Team
-        </h1>
-        <p className="mt-9 max-w-[640px] text-[22px] italic text-[#6b6b6b]">
-          Build meaningful spaces for families and generations to come.
-        </p>
-      </div>
-
-      <PosterFooter address={address} phone={phone} qrCodeUrl={qrCodeUrl} />
-    </article>
-  );
-}
-
-function PosterHeader() {
-  return (
-    <header className="flex w-full flex-col items-center rounded-lg border border-[#a8824a]/35 bg-white/20 px-6 py-[18px]">
-      <span className="font-serif text-[46px] font-bold tracking-[0.18em] text-[#a8824a]">
-        RENAISSANCE
-      </span>
-      <span className="mt-1 text-[16px] tracking-[0.5em] text-[#6b6b6b]">
-        PARK AND CHAPELS
-      </span>
-    </header>
-  );
-}
-
-function PosterFooter({
-  address,
-  phone,
-  qrCodeUrl,
-}: {
-  address: string;
-  phone: string;
-  qrCodeUrl?: string;
-}) {
-  return (
-    <footer className="mt-auto flex flex-col">
-      <hr className="mb-4 border-t-2 border-[#2b2b2b]" />
-      <p className="text-[24px] font-semibold text-[#2b2b2b]">
-        Please send your documents at:
-      </p>
-      <div className="mt-2.5 flex items-center">
-        <div className="mr-4 flex h-[104px] w-[104px] shrink-0 items-center justify-center bg-white">
-          {qrCodeUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrCodeUrl}
-              alt="QR code"
-              className="h-full w-full object-contain"
-            />
-          ) : (
-            <span className="border border-[#2b2b2b] px-3 py-8 text-[12px] text-[#2b2b2b]">
-              QR
+      {/* Body — fills the middle, scaled to fit */}
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          flexDirection: "column",
+          justifyContent: isCover ? "center" : "flex-start",
+          alignItems: isCover ? "center" : "stretch",
+          paddingTop: isCover ? 0 : GAP,
+        }}
+      >
+        {isCover ? (
+          <div
+            style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+          >
+            <span style={{ fontSize: 26, letterSpacing: 8, color: GOLD }}>
+              WE&apos;RE HIRING
             </span>
-          )}
-        </div>
-        <div className="flex flex-col text-[18px] leading-snug text-[#2b2b2b]">
-          <span>{address}</span>
-          <span>{phone}</span>
-        </div>
+            <span
+              style={{
+                fontFamily: SERIF,
+                marginTop: 28,
+                fontSize: 104,
+                fontWeight: 700,
+                color: INK,
+                lineHeight: 1,
+              }}
+            >
+              Join Our Team
+            </span>
+            <span
+              style={{
+                marginTop: 36,
+                width: 640,
+                maxWidth: "100%",
+                fontSize: 22,
+                fontStyle: "italic",
+                color: MUTED,
+                textAlign: "center",
+              }}
+            >
+              Build meaningful spaces for families and generations to come.
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span
+              style={{
+                fontFamily: SERIF,
+                fontSize: px(BASE.title),
+                fontWeight: 700,
+                color: INK,
+                lineHeight: 1,
+              }}
+            >
+              {positionName}
+            </span>
+
+            <span
+              style={{
+                marginTop: px(BASE.gTitle),
+                fontSize: px(BASE.sectionLabel),
+                fontWeight: 600,
+                fontStyle: "italic",
+                color: INK,
+              }}
+            >
+              What we are looking for :
+            </span>
+            <div
+              style={{
+                marginTop: px(BASE.gList),
+                paddingLeft: 14,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {qualLines.map((line, i) => (
+                <span
+                  key={i}
+                  style={{ fontSize: px(BASE.qual), color: INK, lineHeight: 1.4 }}
+                >
+                  {line}
+                </span>
+              ))}
+            </div>
+
+            <span
+              style={{
+                marginTop: px(BASE.gSection),
+                fontSize: px(BASE.sectionLabel),
+                fontWeight: 600,
+                fontStyle: "italic",
+                color: INK,
+              }}
+            >
+              What is the work about :
+            </span>
+            <div
+              style={{
+                marginTop: px(BASE.gList),
+                paddingLeft: 14,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {workLines.map((line, i) => (
+                <span
+                  key={i}
+                  style={{ fontSize: px(BASE.work), color: INK, lineHeight: 1.4 }}
+                >
+                  {line}
+                </span>
+              ))}
+            </div>
+
+            <span
+              style={{
+                marginTop: px(BASE.gComp),
+                fontSize: px(BASE.compLabel),
+                fontWeight: 600,
+                fontStyle: "italic",
+                color: INK,
+              }}
+            >
+              Compensation and Benefits
+            </span>
+            <span
+              style={{
+                fontFamily: SERIF,
+                marginTop: px(BASE.gPayLabel),
+                fontSize: px(BASE.payLabel),
+                fontWeight: 700,
+                color: INK,
+              }}
+            >
+              Starting :
+            </span>
+            <span
+              style={{
+                fontFamily: SERIF,
+                marginTop: px(BASE.gPayValue),
+                paddingLeft: 24,
+                fontSize: px(BASE.payValue),
+                fontWeight: 700,
+                color: INK,
+              }}
+            >
+              {startingRate}
+            </span>
+            <span
+              style={{
+                fontFamily: SERIF,
+                marginTop: px(BASE.gRegular),
+                fontSize: px(BASE.payLabel),
+                fontWeight: 700,
+                color: INK,
+              }}
+            >
+              Regular :
+            </span>
+            <span
+              style={{
+                fontFamily: SERIF,
+                marginTop: px(BASE.gPayValue),
+                paddingLeft: 24,
+                fontSize: px(BASE.payValue),
+                fontWeight: 700,
+                color: INK,
+              }}
+            >
+              {regularRate}
+            </span>
+          </div>
+        )}
       </div>
-    </footer>
+
+      {/* Footer — fixed at bottom */}
+      <footer style={{ flexShrink: 0, display: "flex", flexDirection: "column" }}>
+        <span
+          style={{
+            marginBottom: 12,
+            fontSize: FOOTER.disclaimer,
+            fontStyle: "italic",
+            lineHeight: 1.35,
+            color: MUTED,
+          }}
+        >
+          Rates already reflect a performance-and-integrity allocation that may
+          be given in full when work is carried out responsibly
+        </span>
+        <div style={{ borderTop: `2px solid ${INK}`, marginBottom: 14 }} />
+        <span style={{ fontSize: FOOTER.heading, fontWeight: 600, color: INK }}>
+          Please send your documents at:
+        </span>
+        <div style={{ marginTop: 10, display: "flex", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 104,
+              height: 104,
+              backgroundColor: "#fff",
+              marginRight: 16,
+              ...(qrCodeUrl
+                ? {}
+                : { border: `1px solid ${INK}`, fontSize: 12, color: INK }),
+            }}
+          >
+            {qrCodeUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrCodeUrl}
+                alt="QR code"
+                style={{ width: 104, height: 104, objectFit: "contain" }}
+              />
+            ) : (
+              "QR"
+            )}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              fontSize: FOOTER.contact,
+              color: INK,
+              lineHeight: 1.4,
+            }}
+          >
+            <span>{address}</span>
+            <span>{phone}</span>
+          </div>
+        </div>
+      </footer>
+    </article>
   );
 }
