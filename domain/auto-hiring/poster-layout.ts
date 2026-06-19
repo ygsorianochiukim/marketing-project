@@ -121,12 +121,37 @@ const LIST_W = WIDTH - PAD_X * 2 - 14;
 export const DESC_LINE = 1.4; // line-height for description lines
 const DESC_FLOOR = 0.5; // smallest description font scale before we just clip
 
+// Estimated rendered height of a single description line at scale s.
+function lineHeightPx(line: string, baseSize: number, s: number) {
+  return wrapCount(line, baseSize * s, LIST_W) * baseSize * s * DESC_LINE;
+}
+
 // Estimated rendered height of a description block (qual or work) at scale s.
 function descHeight(lines: string[], baseSize: number, s: number) {
   let h = 0;
-  for (const l of lines)
-    h += wrapCount(l, baseSize * s, LIST_W) * baseSize * s * DESC_LINE;
+  for (const l of lines) h += lineHeightPx(l, baseSize, s);
   return h;
+}
+
+// Keep only the leading lines that fully fit within maxH at the given scale, so
+// the block clips on a whole-line boundary instead of CSS slicing through a
+// line. Always keeps at least the first line (the maxHeight clip is the final
+// guard if even that overflows).
+export function clampLines(
+  lines: string[],
+  baseSize: number,
+  scale: number,
+  maxH: number,
+): string[] {
+  const out: string[] = [];
+  let h = 0;
+  for (const line of lines) {
+    const lh = lineHeightPx(line, baseSize, scale);
+    if (out.length > 0 && h + lh > maxH) break;
+    out.push(line);
+    h += lh;
+  }
+  return out;
 }
 
 // Height consumed by everything in the body EXCEPT the two description blocks

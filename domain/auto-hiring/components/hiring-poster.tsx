@@ -1,5 +1,6 @@
 import {
   BASE,
+  clampLines,
   descLayout,
   FOOTER,
   GAP,
@@ -63,6 +64,10 @@ export function HiringPoster({
   // Same description budgeting the image route uses, so the preview matches.
   const desc = descLayout(positionName, qualLines, workLines);
   const dpx = (n: number) => Math.round(n * desc.scale);
+  // Clip to whole lines that fit the per-block budget, so an over-long
+  // description never bleeds into the compensation block below.
+  const qualShown = clampLines(qualLines, BASE.qual, desc.scale, desc.qualMaxH);
+  const workShown = clampLines(workLines, BASE.work, desc.scale, desc.workMaxH);
 
   return (
     <article
@@ -184,7 +189,7 @@ export function HiringPoster({
                 overflow: "hidden",
               }}
             >
-              {qualLines.map((line, i) => (
+              {qualShown.map((line, i) => (
                 <span
                   key={i}
                   style={{ fontSize: dpx(BASE.qual), color: INK, lineHeight: 1.4 }}
@@ -215,7 +220,7 @@ export function HiringPoster({
                 overflow: "hidden",
               }}
             >
-              {workLines.map((line, i) => (
+              {workShown.map((line, i) => (
                 <span
                   key={i}
                   style={{ fontSize: dpx(BASE.work), color: INK, lineHeight: 1.4 }}

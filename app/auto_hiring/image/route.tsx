@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   BASE,
+  clampLines,
   descLayout,
   FALLBACK_BG,
   FOOTER,
@@ -82,6 +83,10 @@ export async function GET(request: Request) {
     // and footer stay at base size. dpx() scales only the description text.
     const desc = descLayout(position, qualLines, workLines);
     const dpx = (n: number) => Math.round(n * desc.scale);
+    // Clip to whole lines that fit the per-block budget, so an over-long
+    // description never bleeds into the compensation block below.
+    const qualShown = clampLines(qualLines, BASE.qual, desc.scale, desc.qualMaxH);
+    const workShown = clampLines(workLines, BASE.work, desc.scale, desc.workMaxH);
 
     return new ImageResponse(
       (
@@ -221,7 +226,7 @@ export async function GET(request: Request) {
                     overflow: "hidden",
                   }}
                 >
-                  {qualLines.map((line, i) => (
+                  {qualShown.map((line, i) => (
                     <div
                       key={i}
                       style={{ fontSize: dpx(BASE.qual), color: INK, lineHeight: 1.4 }}
@@ -252,7 +257,7 @@ export async function GET(request: Request) {
                     overflow: "hidden",
                   }}
                 >
-                  {workLines.map((line, i) => (
+                  {workShown.map((line, i) => (
                     <div
                       key={i}
                       style={{ fontSize: dpx(BASE.work), color: INK, lineHeight: 1.4 }}
