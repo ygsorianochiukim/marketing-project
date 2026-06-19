@@ -57,6 +57,8 @@ export function HiringPoster({
   const cfg = TEMPLATES[variant];
   const address = companyAddress ?? cfg.address;
   const phone = companyPhone ?? cfg.phone;
+  // Each template defaults to its own QR (admin/field/ck) unless one is passed.
+  const qrSrc = qrCodeUrl ?? `/${cfg.qr}`;
   const isCover = variant === "cover";
 
   const qualLines = splitLines(qualification);
@@ -316,15 +318,15 @@ export function HiringPoster({
               height: 104,
               backgroundColor: "#fff",
               marginRight: 16,
-              ...(qrCodeUrl
+              ...(qrSrc
                 ? {}
                 : { border: `1px solid ${INK}`, fontSize: 12, color: INK }),
             }}
           >
-            {qrCodeUrl ? (
+            {qrSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={qrCodeUrl}
+                src={qrSrc}
                 alt="QR code"
                 style={{ width: 104, height: 104, objectFit: "contain" }}
               />

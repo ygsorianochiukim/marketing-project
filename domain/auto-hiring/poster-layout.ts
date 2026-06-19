@@ -21,27 +21,31 @@ export const MUTED = "#6b6b6b";
 // templates share one layout and differ only by background + footer.
 export const TEMPLATES: Record<
   TemplateKey,
-  { bg: string; address: string; phone: string }
+  { bg: string; address: string; phone: string; qr: string }
 > = {
   admin: {
     bg: "bg-hiring-admin.png",
     address: "Bldg, Osmeña St., Zone I, City of Koronadal",
     phone: "+63 963 630 8117",
+    qr: "AdminQR.png",
   },
   field: {
     bg: "bg-hiring-field.png",
     address: "San Felipe, Tantangan, South Cotabato",
     phone: "+63 922 588 3675",
+    qr: "FieldQR.png",
   },
   ck: {
     bg: "bg-hiring-ck.png",
     address: "Bldg, Osmeña St., Zone I, City of Koronadal",
     phone: "+63 963 630 8117",
+    qr: "AdminQR.png",
   },
   cover: {
     bg: "bg-hiring-cover.png",
     address: "Bldg, Osmeña St., Zone I, City of Koronadal",
     phone: "+63 963 630 8117",
+    qr: "AdminQR.png",
   },
 };
 

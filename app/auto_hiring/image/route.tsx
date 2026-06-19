@@ -59,12 +59,13 @@ export async function GET(request: Request) {
     const regularRate = searchParams.get("regular") ?? "Regular";
     const companyAddress = searchParams.get("company_address") ?? cfg.address;
     const companyPhone = searchParams.get("company_phone") ?? cfg.phone;
-    const qrCodeUrl = searchParams.get("qr");
+    const qrParam = searchParams.get("qr");
 
-    const [bg, logo, playfairBold, poppinsReg, poppinsSemi, poppinsItalic, poppinsSemiItalic] =
+    const [bg, logo, qr, playfairBold, poppinsReg, poppinsSemi, poppinsItalic, poppinsSemiItalic] =
       await Promise.all([
         loadAsset(cfg.bg, FALLBACK_BG),
         loadAsset(HEADER.logo),
+        loadAsset(cfg.qr),
         loadFont("PlayfairDisplay-Bold.woff"),
         loadFont("Poppins-Regular.ttf"),
         loadFont("Poppins-SemiBold.ttf"),
@@ -76,6 +77,10 @@ export async function GET(request: Request) {
     const logoDataUrl = logo
       ? `data:image/png;base64,${logo.toString("base64")}`
       : null;
+    // Each template falls back to its own QR (admin/field/ck) when n8n doesn't
+    // pass an explicit `qr=` override.
+    const qrDataUrl = qr ? `data:image/png;base64,${qr.toString("base64")}` : null;
+    const qrCodeUrl = qrParam ?? qrDataUrl;
     const qualLines = splitLines(qualification);
     const workLines = splitLines(workAbout);
 
