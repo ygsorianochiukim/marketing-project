@@ -522,7 +522,7 @@
             {
               "id": "cover-img",
               "name": "image_url",
-              "value": "={{ $('Settings').first().json.base_url }}/auto_hiring/image?template=cover",
+              "value": "={{ $('Settings').first().json.base_url }}/cover.jpg",
               "type": "string"
             },
             {
@@ -605,6 +605,32 @@
       ],
       "id": "0d64e824-206c-423c-b09e-ad7a7f59f062",
       "name": "CK Hiring"
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst out = [];\nfor (const item of $input.all()) {\n  const key = String(item.json.position_id);\n  if (seen.has(key)) continue;\n  seen.add(key);\n  out.push(item);\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        1120
+      ],
+      "id": "b1de0001-0000-4000-8000-00000000d501",
+      "name": "Dedupe Salary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst out = [];\nfor (const item of $input.all()) {\n  const key = String(item.json.position_id);\n  if (seen.has(key)) continue;\n  seen.add(key);\n  out.push(item);\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1424
+      ],
+      "id": "b1de0002-0000-4000-8000-00000000d502",
+      "name": "Dedupe Qualification"
     }
   ],
   "pinData": {},
@@ -614,6 +640,11 @@
         [
           {
             "node": "Position Hiring",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Cover Photo (Placid)",
             "type": "main",
             "index": 0
           }
@@ -695,6 +726,17 @@
       "main": [
         [
           {
+            "node": "Dedupe Salary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe Salary": {
+      "main": [
+        [
+          {
             "node": "Check Location",
             "type": "main",
             "index": 0
@@ -714,6 +756,17 @@
       ]
     },
     "Qualification": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe Qualification": {
       "main": [
         [
           {
