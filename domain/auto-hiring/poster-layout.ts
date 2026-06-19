@@ -67,10 +67,11 @@ export const BASE = {
   gRegular: 12,
 };
 
-// Header is the logo image (public/logo-blk.png) at a fixed height.
+// Header is the logo image (public/logo-blk.png) at a fixed height, on the bare
+// background (no box/fill) and centered.
 export const HEADER = {
   logo: "logo-blk.png",
-  logoHeight: 72,
+  logoHeight: 96,
   padX: 24,
   padY: 14,
 };
@@ -82,7 +83,7 @@ export const FOOTER = {
 
 // Fixed (un-scaled) header/footer heights + breathing room, used to derive how
 // much vertical space the body may occupy.
-const HEADER_H = 104;
+const HEADER_H = 124;
 const FOOTER_H = 220;
 export const GAP = 32;
 const AVAILABLE_BODY = HEIGHT - PAD_TOP - PAD_BOT - HEADER_H - FOOTER_H - GAP;

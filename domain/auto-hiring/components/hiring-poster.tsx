@@ -96,9 +96,6 @@ export function HiringPoster({
           alignItems: "center",
           width: "100%",
           padding: `${HEADER.padY}px ${HEADER.padX}px`,
-          border: "1px solid rgba(168,130,74,0.35)",
-          borderRadius: 8,
-          backgroundColor: "rgba(255,255,255,0.20)",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
